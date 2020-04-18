@@ -6,16 +6,29 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+extern "C" void covid_allocateMem( unsigned int** infectedCounts,
+                        unsigned int** recoveredCounts,
+                        unsigned int** infectedCountResults,
+                        unsigned int** recoveredCountResults,
+                        int numCities){
 
-extern "C" void gol_initMaster( unsigned char** data, unsigned char** resultData, unsigned int pattern,
-    size_t worldSize, int myrank, int numranks )
-{
+    int dataLength = numCities * sizeof(unsigned int);
+
+    cudaMallocManaged( infectedCounts, dataLength );
+    cudaMallocManaged( recoveredCounts, dataLength );
+    cudaMallocManaged( infectedCountResults, dataLength );
+    cudaMallocManaged( recoveredCountResults, dataLength );
 
 }
 
-extern "C" void gol_freeMem( unsigned char* data, unsigned char* resultData ){
-    cudaFree(data);
-    cudaFree(resultData);
+extern "C" void gol_freeMem( unsigned int* infectedCounts,
+                        unsigned int* recoveredCounts,
+                        unsigned int* infectedCountResults,
+                        unsigned int* recoveredCountResult){
+    cudaFree(infectedCounts);
+    cudaFree(recoveredCounts);
+    cudaFree(infectedCountResults);
+    cudaFree(recoveredCountResults);
 }
 
 static inline void gol_swap( unsigned char **pA, unsigned char **pB)
@@ -74,40 +87,25 @@ extern "C" void gol_printWorld(unsigned char* data, unsigned int worldSize, int 
 
 
 
-__global__ void gol_kernel(const unsigned char* d_data,
-                            unsigned int worldWidth,
-                            unsigned int worldHeight,
-                            unsigned char* d_resultData){
+__global__ void covid_intracity_kernel( unsigned int** infectedCounts,
+                        unsigned int** recoveredCounts,
+                        unsigned int** infectedCountResults,
+                        unsigned int** recoveredCountResults,
+                        int dataLength)
+{
 
     //Declare variables that will be used
-    size_t y, y0, y1, y2;
-    size_t x, x0, x1, x2;
-    int aliveCount;
+    int infected, recovered;
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    // int stopIndex = index + blockDim.x;
 
-    while(index < worldWidth*worldHeight){
+    while(index < dataLength){
 
-        //calculate x and y from index
-        y = index / worldWidth;
-        x = index - (y * worldWidth);
+        infected = infectedCounts[index];
+        recovered = recoveredCounts[intdex];
 
-        // set: y0, y1 and y2
-        y0 = ((y + worldHeight - 1) % worldHeight) * worldWidth;
-        y1 = y * worldWidth;
-        y2 = ((y + 1) % worldHeight) * worldWidth;
-
-        // set x0, x2, call countAliveCells and compute if g_resultsData[y1 + x] is 0 or 1
-        x1 = x;
-        x0 = (x1 + worldWidth - 1) % worldWidth;
-        x2 = (x1 + 1) % worldWidth;
-
-        //count the alive cells
-        aliveCount = gol_countAliveCells( d_data, x0, x1, x2, y0, y1, y2);
-
-        //set the result
-        d_resultData[x1+y1] = (d_data[x1+y1] && aliveCount==2) || aliveCount==3;
+        infectedCountResults[index]  = infected * 1.01;
+        recoveredCountResults[index] = recovered + infected * 0.1;
 
         //increment the index
         index += blockDim.x * gridDim.x;
@@ -118,20 +116,23 @@ __global__ void gol_kernel(const unsigned char* d_data,
 
 
 
-extern "C" bool gol_kernelLaunch(unsigned char** data,
-                        unsigned char** resultData,
-                        size_t worldWidth,
-                        size_t worldHeight,
+extern "C" bool covid_itracity_kernelLaunch( unsigned int** infectedCounts,
+                        unsigned int** recoveredCounts,
+                        unsigned int** infectedCountResults,
+                        unsigned int** recoveredCountResults,
+                        int dataLength,
                         ushort threadsCount)
 {
 
 
     //calculate the number of blocks based on the threads per block
-    int blockCount = ( worldWidth * worldHeight ) / threadsCount;
+    int blockCount = dataLength / threadsCount;
 
     //run one itterations
-    gol_kernel<<<blockCount, threadsCount>>>( *data, worldWidth, worldHeight, *resultData);
-    gol_swap( resultData, data );
+    covid_intracity_kernel<<<blockCount, threadsCount>>>( *data, worldWidth, worldHeight, *resultData);
+
+    gol_swap( infectedCountResults, infectedCounts );
+    gol_swap( recoveredCountResults, recoveredCounts );
 
     cudaDeviceSynchronize();
 
