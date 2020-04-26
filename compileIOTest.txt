@@ -1,0 +1,1 @@
+mpicc -g testFileIO.c fileIO.c -c -o main.o

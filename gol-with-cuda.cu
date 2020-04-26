@@ -13,10 +13,12 @@ extern "C" struct City{
     int density;
 
     int cityRanking;
-    int lattitule;
-    int longitue;
+    int lattitude;
+    int longitude;
+    char cityName[50];
+    char state[2];
 
-    struct City* connectedCitiesIndiceis[];
+    struct City* connectedCitiesIndicies[];
     double edgeWeights[];
 };
 
