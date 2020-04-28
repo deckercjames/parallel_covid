@@ -24,6 +24,7 @@ extern "C" struct City{
 
 
 extern "C" struct InfectedCity{
+    int susceptibleCount;
     int infectedCount;
     int recoveredCount;
     int iterationOfInfection;
@@ -66,34 +67,45 @@ static inline void pointer_swap( unsigned char **pA, unsigned char **pB)
     //set b to the stored val of a
     *pB = temp;
 }
- 
-__device__ static inline unsigned int covid_getProbOfSpread(const unsigned char* data, 
-                       int pop1, int infectedCount1, int rank1,
-                       int pop1, int infectedCount1, int rank1,
-					   double distand) 
-{
-  
-  return 0;
-    
-}
-
 
 
 __global__ void covid_intracity_kernel(
-                        City** cityData,
-                        InfectedCity** allReleventInfectedCities,
-                        InfectedCity** allReleventInfectedCitiesResult,
+                        City* cityData,
+                        InfectedCity* allReleventInfectedCities,
+                        InfectedCity* allReleventInfectedCitiesResult,
                         int dataLength)
 {
 
+    //parameters for SIR model
+    double spreadRate = 2.2;
+    double infectionDuration = 12.7;
+    double recoveryRate = 1 / infectionDuration;
+
     //Declare variables that will be used
-    int infected, recovered;
+    int newInfections, newRecoveries;
+    
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
     while(index < dataLength){
 
-        //TODO
+        //get pointers to the indexed city
+        City* city = allReleventInfectedCities + index;
+        City* cityResult = allReleventInfectedCitiesResult + index;
+
+        //SIR Model
+        //new infections
+        newInfections = (int) (spreadRate * city.susceptibleCount * city.infectedCount / cityData[index].totalPopulation);
+        if(newInfections == 0 && city.susceptibleCount > 0) newInfections = 1;
+
+        //new recoveries
+        newRecoveries = (int) (recoveryRate * city.infectedCount);
+        if(newRecoveries == 0 && city.susceptibleCount == 0 && city.infectedCount != 0) newRecoveries = 1;
+
+        //Calculated city results
+        cityResult.susceptibleCount = city.susceptibleCount - newInfections;
+        cityResult.infectedCount    = city.infectedCount + newInfections - newRecoveries;
+        cityResult.recoveredCount   = city.recoveredCount + newRecoveries;
 
         //increment the index
         index += blockDim.x * gridDim.x;

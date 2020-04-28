@@ -12,19 +12,12 @@ extern void covid_allocateMem( unsigned int** infectedCounts,
                         unsigned int** recoveredCountResults,
                         int numCities);
 
-extern void covid_itracity_kernelLaunch(unsigned int** infectedCounts,
-                        unsigned int** recoveredCounts,
-                        unsigned int** infectedCountResults,
-                        unsigned int** recoveredCountResults,
+extern bool covid_kernelLaunch( City** cityData,
+                        InfectedCity** allReleventInfectedCities,
+                        InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength,
-                        ushort threadsCount);
-
-extern bool covid_spread_kernelLaunch(unsigned int** infectedCounts,
-                        unsigned int** recoveredCounts,
-                        unsigned int** infectedCountResults,
-                        unsigned int** recoveredCountResults,
-                        int dataLength,
-                        ushort threadsCount);
+                        ushort threadsCount,
+                        char intracity_or_spread);
 
 extern void covid_freeMem( unsigned int* infectedCounts,
                         unsigned int* recoveredCounts,
