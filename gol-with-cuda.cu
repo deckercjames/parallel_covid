@@ -27,6 +27,7 @@ extern "C" struct InfectedCity{
     int susceptibleCount;
     int infectedCount;
     int recoveredCount;
+    int deceasedCount;
     int iterationOfInfection;
 };
 
@@ -77,12 +78,14 @@ __global__ void covid_intracity_kernel(
 {
 
     //parameters for SIR model
+    //TODO make these arguements when running the program
     double spreadRate = 2.2;
     double infectionDuration = 12.7;
     double recoveryRate = 1 / infectionDuration;
+    double mortalityRate = 0.005;
 
     //Declare variables that will be used
-    int newInfections, newRecoveries;
+    int newInfections, newRecoveries, newDeaths;
     
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -98,14 +101,19 @@ __global__ void covid_intracity_kernel(
         newInfections = (int) (spreadRate * city.susceptibleCount * city.infectedCount / cityData[index].totalPopulation);
         if(newInfections == 0 && city.susceptibleCount > 0) newInfections = 1;
 
+        //new deaths
+        newDeaths = (int) (mortalityRate * city.infectedCount);
+
         //new recoveries
         newRecoveries = (int) (recoveryRate * city.infectedCount);
-        if(newRecoveries == 0 && city.susceptibleCount == 0 && city.infectedCount != 0) newRecoveries = 1;
+        if(newRecoveries == 0 && newDeaths == 0 && city.susceptibleCount == 0 && && city.infectedCount != 0) newRecoveries = 1;
+
 
         //Calculated city results
         cityResult.susceptibleCount = city.susceptibleCount - newInfections;
-        cityResult.infectedCount    = city.infectedCount + newInfections - newRecoveries;
+        cityResult.infectedCount    = city.infectedCount + newInfections - newRecoveries - newDeaths;
         cityResult.recoveredCount   = city.recoveredCount + newRecoveries;
+        cityResult.deceasedCount    = city.deceasedCount + newDeaths;
 
         //increment the index
         index += blockDim.x * gridDim.x;
