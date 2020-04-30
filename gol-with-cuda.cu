@@ -9,23 +9,6 @@
 #include "covidTypes.h"
 
 
-/*typedef struct City City;
-extern "C" struct City{
-    int totalPopulation;
-    int density;
-
-    int cityRanking;
-    int lattitude;
-    int longitude;
-    char cityName[50];
-    char state[2];
-
-    int connectedCities;
-    struct City* connectedCitiesIndicies;
-    double* edgeWeights;
-};*/
-
-
 //array used to determine edge weights (along with distance)
 //      target city rank: 1  2  3  4  5
 //spreading city rank: 1
@@ -43,17 +26,9 @@ const double edgeWeightMultipliers[5][5] =
 //edges with weights below this won't be recorded
 const double minWeight = 0.01;
 
-/*extern "C" struct InfectedCity{
-    int susceptibleCount;
-    int infectedCount;
-    int recoveredCount;
-    int deceasedCount;
-    int iterationOfInfection;
-};*/
 
 
-
-/*extern "C" void covid_allocateMem( unsigned int** infectedCounts,
+extern "C" void covid_allocateMem( unsigned int** infectedCounts,
                         unsigned int** recoveredCounts,
                         unsigned int** infectedCountResults,
                         unsigned int** recoveredCountResults,
@@ -78,11 +53,11 @@ extern "C" void gol_freeMem( unsigned int* infectedCounts,
     cudaFree(recoveredCountResults);
 }
 
-static inline void pointer_swap( unsigned char **pA, unsigned char **pB)
+static inline void pointer_swap( struct InfectedCity **pA, struct InfectedCity **pB)
 {
     // You write this function - it should swap the pointers of pA and pB.
     //declare a temp to store A
-    unsigned char * temp = *pA;
+    struct InfectedCity * temp = *pA;
     //set a to b
     *pA = *pB;
     //set b to the stored val of a
@@ -107,33 +82,35 @@ __global__ void covid_intracity_kernel(
     //Declare variables that will be used
     int newInfections, newRecoveries, newDeaths;
     
+    struct InfectedCity* city;
+    struct InfectedCity* cityResult;
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
     while(index < dataLength){
 
         //get pointers to the indexed city
-        City* city = allReleventInfectedCities + index;
-        City* cityResult = allReleventInfectedCitiesResult + index;
+        city = allReleventInfectedCities + index;
+        cityResult = allReleventInfectedCitiesResult + index;
 
         //SIR Model
         //new infections
-        newInfections = (int) (spreadRate * city.susceptibleCount * city.infectedCount / cityData[index].totalPopulation);
-        if(newInfections == 0 && city.susceptibleCount > 0) newInfections = 1;
+        newInfections = (int) (spreadRate * (*city).susceptibleCount * (*city).infectedCount / cityData[index].totalPopulation);
+        if(newInfections == 0 && (*city).susceptibleCount > 0) newInfections = 1;
 
         //new deaths
-        newDeaths = (int) (mortalityRate * city.infectedCount);
+        newDeaths = (int) (mortalityRate * (*city).infectedCount);
 
         //new recoveries
-        newRecoveries = (int) (recoveryRate * city.infectedCount);
-        if(newRecoveries == 0 && newDeaths == 0 && city.susceptibleCount == 0 && && city.infectedCount != 0) newRecoveries = 1;
+        newRecoveries = (int) (recoveryRate * (*city).infectedCount);
+        if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
 
 
         //Calculated city results
-        cityResult.susceptibleCount = city.susceptibleCount - newInfections;
-        cityResult.infectedCount    = city.infectedCount + newInfections - newRecoveries - newDeaths;
-        cityResult.recoveredCount   = city.recoveredCount + newRecoveries;
-        cityResult.deceasedCount    = city.deceasedCount + newDeaths;
+        (*cityResult).susceptibleCount = (*city).susceptibleCount - newInfections;
+        (*cityResult).infectedCount    = (*city).infectedCount + newInfections - newRecoveries - newDeaths;
+        (*cityResult).recoveredCount   = (*city).recoveredCount + newRecoveries;
+        (*cityResult).deceasedCount    = (*city).deceasedCount + newDeaths;
 
         //increment the index
         index += blockDim.x * gridDim.x;
@@ -146,14 +123,11 @@ __global__ void covid_intracity_kernel(
 
 
 __global__ void covid_spread_kernel(
-                        struct City** cityData,
-                        InfectedCity** allReleventInfectedCities,
-                        InfectedCity** allReleventInfectedCitiesResult,
+                        struct City* cityData,
+                        struct InfectedCity* allReleventInfectedCities,
+                        struct InfectedCity* allReleventInfectedCitiesResult,
                         int dataLength)
 {
-
-    //Declare variables that will be used
-    int infected, recovered;
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -169,8 +143,8 @@ __global__ void covid_spread_kernel(
 }
 
 extern "C" bool covid_kernelLaunch(struct City** cityData,
-                        InfectedCity** allReleventInfectedCities,
-                        InfectedCity** allReleventInfectedCitiesResult,
+                        struct InfectedCity** allReleventInfectedCities,
+                        struct InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength,
                         ushort threadsCount,
                         char intracity_or_spread)
@@ -191,7 +165,7 @@ extern "C" bool covid_kernelLaunch(struct City** cityData,
     cudaDeviceSynchronize();
 
     return true;
-}*/
+}
 
 __global__ void smallCityConnectionsKernel(struct City** cityData, int dataLength){
     int index = blockIdx.x * blockDim.x + threadIdx.x;
