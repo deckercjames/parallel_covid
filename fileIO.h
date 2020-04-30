@@ -3,9 +3,9 @@
 #include "mpi.h"
 #define LINESIZE 500
 
-//extern struct City;
+extern struct City;
 
-struct City{
+/*struct City{
     int totalPopulation;
     int density;
 
@@ -17,7 +17,7 @@ struct City{
 
     struct City* connectedCitiesIndicies;
     double* edgeWeights;
-};
+};*/
 
 //takes the fileName of the csv city dataset, puts all relevant data in cityData,
 //creates connections and weights between cities

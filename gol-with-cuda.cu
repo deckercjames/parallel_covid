@@ -2,12 +2,14 @@
 #include<stdlib.h>
 #include<unistd.h>
 #include<stdbool.h>
+#include<string.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include "covidTypes.h"
 
 
-typedef struct City City;
+/*typedef struct City City;
 extern "C" struct City{
     int totalPopulation;
     int density;
@@ -18,22 +20,40 @@ extern "C" struct City{
     char cityName[50];
     char state[2];
 
-    struct City* connectedCitiesIndicies[];
-    double edgeWeights[];
-};
+    int connectedCities;
+    struct City* connectedCitiesIndicies;
+    double* edgeWeights;
+};*/
 
 
-extern "C" struct InfectedCity{
+//array used to determine edge weights (along with distance)
+//      target city rank: 1  2  3  4  5
+//spreading city rank: 1
+//                     2
+//                     3
+//                     4
+//                     5
+const double edgeWeightMultipliers[5][5] = 
+{{1, 0.9, 0.8, 0.7, 0.6},
+{0.8, 0.7, 0.6, 0.5, 0.4},
+{0.7, 0.6, 0.5, 0.4, 0.3},
+{0.6, 0.5, 0.4, 0.3, 0.2},
+{0.5, 0.4, 0.3, 0.2, 0.1}};
+
+//edges with weights below this won't be recorded
+const double minWeight = 0.01;
+
+/*extern "C" struct InfectedCity{
     int susceptibleCount;
     int infectedCount;
     int recoveredCount;
     int deceasedCount;
     int iterationOfInfection;
-};
+};*/
 
 
 
-extern "C" void covid_allocateMem( unsigned int** infectedCounts,
+/*extern "C" void covid_allocateMem( unsigned int** infectedCounts,
                         unsigned int** recoveredCounts,
                         unsigned int** infectedCountResults,
                         unsigned int** recoveredCountResults,
@@ -51,7 +71,7 @@ extern "C" void covid_allocateMem( unsigned int** infectedCounts,
 extern "C" void gol_freeMem( unsigned int* infectedCounts,
                         unsigned int* recoveredCounts,
                         unsigned int* infectedCountResults,
-                        unsigned int* recoveredCountResult){
+                        unsigned int* recoveredCountResults){
     cudaFree(infectedCounts);
     cudaFree(recoveredCounts);
     cudaFree(infectedCountResults);
@@ -71,7 +91,7 @@ static inline void pointer_swap( unsigned char **pA, unsigned char **pB)
 
 
 __global__ void covid_intracity_kernel(
-                        City* cityData,
+                        struct City* cityData,
                         InfectedCity* allReleventInfectedCities,
                         InfectedCity* allReleventInfectedCitiesResult,
                         int dataLength)
@@ -126,7 +146,7 @@ __global__ void covid_intracity_kernel(
 
 
 __global__ void covid_spread_kernel(
-                        City** cityData,
+                        struct City** cityData,
                         InfectedCity** allReleventInfectedCities,
                         InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength)
@@ -148,9 +168,7 @@ __global__ void covid_spread_kernel(
     
 }
 
-
-
-extern "C" bool covid_kernelLaunch( City** cityData,
+extern "C" bool covid_kernelLaunch(struct City** cityData,
                         InfectedCity** allReleventInfectedCities,
                         InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength,
@@ -173,11 +191,26 @@ extern "C" bool covid_kernelLaunch( City** cityData,
     cudaDeviceSynchronize();
 
     return true;
+}*/
+
+__global__ void smallCityConnectionsKernel(struct City** cityData, int dataLength){
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int i;
+    while(index < dataLength){
+        
+        for(i = 0; i < dataLength; i++){
+
+        }
+
+        index += blockDim.x * gridDim.x;
+
+    }
+
 }
 
+//this should be called before spreading large cities to all ranks
+extern "C" void smallCityConnectionsKernelLaunch(struct City** cityData, int dataLength, int threadCount){
+    int blockCount = dataLength/threadCount;
 
 
-
-
-
-
+}

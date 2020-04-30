@@ -21,6 +21,6 @@ module load gcc/7.4.0/1
 module load spectrum-mpi
 module load cuda
 
-mpirun -hostfile /tmp/hosts.$SLURM_JOB_ID -np $SLURM_NPROCS /gpfs/u/home/PCP9/PCP9dckr/scratch/assignment3-template/covid-exe 4 8 1 8 1
+mpirun -hostfile /tmp/hosts.$SLURM_JOB_ID -np $SLURM_NPROCS /gpfs/u/home/PCP9/PCP9kngc/barn/covid19/covid-exe
 
 rm /tmp/hosts.$SLURM_JOB_ID
