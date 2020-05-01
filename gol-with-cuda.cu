@@ -48,7 +48,7 @@ extern "C" void covid_allocateMem(
 
 }
 
-extern "C" void gol_freeMem(
+extern "C" void covid_freeMem(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult){

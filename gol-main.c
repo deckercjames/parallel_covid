@@ -34,7 +34,7 @@ extern bool covid_spread_kernelLaunch(struct City** cityData,
                         int allLargeCityCount,
                         ushort threadsCount);
 
-extern void gol_freeMem(
+extern void covid_freeMem(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult);
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
     
     if(myRank == 0){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     if(myRank == 1){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);    
     if(myRank == 2){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);    
     if(myRank == 3){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);    
     if(myRank == 4){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     if(myRank == 5){
         for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %d city %d population %d density %d lat %lf long %lf name %s state %s cityRanking %d\n", 
+            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
             myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
