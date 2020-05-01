@@ -60,48 +60,39 @@ const char filename[50] = "uscities.csv";
 const int fileLength = 5309769;
 
 
-/*
+
 MPI_Datatype getCityDataDataType(){
 
-    // int totalPopulation;
-    // int density;
-
-    // int cityRanking;
-    // double lattitude;
-    // double longitude;
-    // char cityName[50];
-    // char state[2];
-
-    // int connectedCities;
-    // struct City* connectedCitiesIndicies;
-    // double* edgeWeights;
-
-    const int fieldCount = 10;
-    int          blocklengths[fieldCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    MPI_Datatype types       [fieldCount] = {
-        MPI_INT, MPI_INT,
-        MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_CHAR, MPI_CHAR,
-        MPI_INT, MPI_PO};
-    MPI_Aint     offsets     [fieldCount];
+    const int fieldCount = 7;
+    int blocklengths [fieldCount] = {50, 2, 1, 1, 1, 1, 1};
+    MPI_Datatype types [fieldCount] = 
+    {
+        MPI_CHAR, MPI_CHAR,
+        MPI_INT, MPI_INT, MPI_INT,
+        MPI_DOUBLE, MPI_DOUBLE
+    };
 
     //check the offset of each field
-    offsets[0] = offsetof(struct InfectedCity, susceptibleCount);
-    offsets[1] = offsetof(struct InfectedCity, infectedCount);
-    offsets[2] = offsetof(struct InfectedCity, recoveredCount);
-    offsets[3] = offsetof(struct InfectedCity, deceasedCount);
-    offsets[4] = offsetof(struct InfectedCity, iterationOfInfection);
+    MPI_Aint offsets [fieldCount];
+    offsets[0] = offsetof(struct City, cityName);
+    offsets[1] = offsetof(struct City, state);
+    offsets[2] = offsetof(struct City, cityRanking);
+    offsets[3] = offsetof(struct City, totalPopulation);
+    offsets[4] = offsetof(struct City, density);
+    offsets[5] = offsetof(struct City, lattitude);
+    offsets[6] = offsetof(struct City, longitude);
 
     //the data type to be created
-    MPI_Datatype mpi_infectedCity_type;
+    MPI_Datatype mpi_cityData_type;
 
     //create and commit the datatype
-    MPI_Type_create_struct(fieldCount, blocklengths, offsets, types, &mpi_infectedCity_type);
-    MPI_Type_commit(&mpi_infectedCity_type);
+    MPI_Type_create_struct(fieldCount, blocklengths, offsets, types, &mpi_cityData_type);
+    MPI_Type_commit(&mpi_cityData_type);
 
     //return the datatype to the main function
-    return mpi_infectedCity_type;
+    return mpi_cityData_type;
 
-}*/
+}
 
 MPI_Datatype getInfectedCityDataType(){
 
@@ -191,8 +182,9 @@ int main(int argc, char *argv[])
     // Setup MPI
     MPI_Init(&argc, &argv);
 
-    //get the data type
+    //get the data types
     MPI_Datatype mpi_infectedCity_type = getInfectedCityDataType();
+    MPI_Datatype mpi_cityData_type = getCityDataDataType();
 
     //get my rank
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
