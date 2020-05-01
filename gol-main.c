@@ -59,12 +59,29 @@ struct City** cityData, int* cityDataLength, int* numSmallCities);
 const char filename[50] = "uscities.csv";
 const int fileLength = 5309769;
 
-/*
-MPI_Datatype getInfectedCityDataType(){
 
-    const int fieldCount = 5;
-    int          blocklengths[fieldCount] = {1, 1, 1, 1, 1};
-    MPI_Datatype types       [fieldCount] = {MPI_INT, MPI_INT, MPI_INT, MPI_INT, MPI_INT};
+/*
+MPI_Datatype getCityDataDataType(){
+
+    // int totalPopulation;
+    // int density;
+
+    // int cityRanking;
+    // double lattitude;
+    // double longitude;
+    // char cityName[50];
+    // char state[2];
+
+    // int connectedCities;
+    // struct City* connectedCitiesIndicies;
+    // double* edgeWeights;
+
+    const int fieldCount = 10;
+    int          blocklengths[fieldCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    MPI_Datatype types       [fieldCount] = {
+        MPI_INT, MPI_INT,
+        MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_CHAR, MPI_CHAR,
+        MPI_INT, MPI_PO};
     MPI_Aint     offsets     [fieldCount];
 
     //check the offset of each field
@@ -136,6 +153,8 @@ void MPI_passInfectionData(struct InfectedCity* allReleventInfectedCities,
 int main(int argc, char *argv[])
 {
 
+    printf("hello world\n");
+
     //declare variables
     int i;
 
@@ -166,6 +185,7 @@ int main(int argc, char *argv[])
     //rank data
     int myRank;
     int numRanks;
+
 
 
     // Setup MPI
@@ -246,6 +266,7 @@ int main(int argc, char *argv[])
 
     //start infection
 
+/*
     for(i = 0; i<iterations; i++){
 
         //intra-city update
@@ -267,9 +288,14 @@ int main(int argc, char *argv[])
             allLargeCityCount,
             threadsCount);
 
-    }
+    }*/
 
     //write results
+
+
+    //finalize
+    MPI_Finalize();
+
 
 }
 
