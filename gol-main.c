@@ -13,11 +13,12 @@
 const int iterations = 10;
 const int threadsCount = 64;
 
-extern void covid_allocateMem( unsigned int** infectedCounts,
-                        unsigned int** recoveredCounts,
-                        unsigned int** infectedCountResults,
-                        unsigned int** recoveredCountResults,
-                        int numCities);
+extern void covid_allocateMem(
+                        struct City** cityData,
+                        struct InfectedCity** infectedCities,
+                        struct InfectedCity** infectedCitiesResult,
+                        int numCities,
+                        int numInfectedCities);
 
 extern bool covid_intracity_kernelLaunch(struct City** cityData,
                         struct InfectedCity** allReleventInfectedCities,
@@ -33,10 +34,10 @@ extern bool covid_spread_kernelLaunch(struct City** cityData,
                         int allLargeCityCount,
                         ushort threadsCount);
 
-extern void covid_freeMem( unsigned int* infectedCounts,
-                        unsigned int* recoveredCounts,
-                        unsigned int* infectedCountResults,
-                        unsigned int* recoveredCountResult);
+extern void gol_freeMem(
+                        struct City** cityData,
+                        struct InfectedCity** infectedCities,
+                        struct InfectedCity** infectedCitiesResult);
 
 
 
@@ -58,6 +59,7 @@ struct City** cityData, int* cityDataLength, int* numSmallCities);
 const char filename[50] = "uscities.csv";
 const int fileLength = 5309769;
 
+/*
 MPI_Datatype getInfectedCityDataType(){
 
     const int fieldCount = 5;
@@ -77,6 +79,21 @@ MPI_Datatype getInfectedCityDataType(){
 
     //create and commit the datatype
     MPI_Type_create_struct(fieldCount, blocklengths, offsets, types, &mpi_infectedCity_type);
+    MPI_Type_commit(&mpi_infectedCity_type);
+
+    //return the datatype to the main function
+    return mpi_infectedCity_type;
+
+}*/
+
+MPI_Datatype getInfectedCityDataType(){
+
+    const int fieldCount = 5;
+    
+    MPI_Datatype mpi_infectedCity_type;
+ 
+    //create and commit the datatype
+    MPI_Type_contiguous( fieldCount, MPI_INT, &mpi_infectedCity_type );
     MPI_Type_commit(&mpi_infectedCity_type);
 
     //return the datatype to the main function
@@ -153,12 +170,13 @@ int main(int argc, char *argv[])
 
     // Setup MPI
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
 
     //get the data type
     MPI_Datatype mpi_infectedCity_type = getInfectedCityDataType();
 
+    //get my rank
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
 
     //allocate memory for mpi passing pointer
     struct InfectedCity** rankDataPointers = (struct InfectedCity**) malloc(numRanks * sizeof(struct InfectedCity*));
@@ -166,7 +184,7 @@ int main(int argc, char *argv[])
 
 
     //allocate memory for cityData, infectedCount/Result
-    //  in cuda file: cudaMallocManaged()
+    //covid_allocateMem(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult, allCityCount, myCityCount);
 
     //read in city data
     readFile(filename, fileLength, myRank, numRanks, &cityData, &cityDataLength, &numSmallCities);

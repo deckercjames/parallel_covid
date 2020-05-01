@@ -31,29 +31,30 @@ const double minWeight = 0.01;
 
 
 
-extern "C" void covid_allocateMem( unsigned int** infectedCounts,
-                        unsigned int** recoveredCounts,
-                        unsigned int** infectedCountResults,
-                        unsigned int** recoveredCountResults,
-                        int numCities){
+extern "C" void covid_allocateMem(
+                        struct City** cityData,
+                        struct InfectedCity** infectedCities,
+                        struct InfectedCity** infectedCitiesResult,
+                        int numCities,
+                        int numInfectedCities){
 
-    int dataLength = numCities * sizeof(unsigned int);
+    int cityDataLength = numCities * sizeof(struct City);
+    int infectedCityDataLength = numInfectedCities * sizeof(struct InfectedCity);
 
-    cudaMallocManaged( infectedCounts, dataLength );
-    cudaMallocManaged( recoveredCounts, dataLength );
-    cudaMallocManaged( infectedCountResults, dataLength );
-    cudaMallocManaged( recoveredCountResults, dataLength );
+    cudaMallocManaged( cityData, cityDataLength);
+
+    cudaMallocManaged( infectedCities,       infectedCityDataLength );
+    cudaMallocManaged( infectedCitiesResult, infectedCityDataLength );
 
 }
 
-extern "C" void gol_freeMem( unsigned int* infectedCounts,
-                        unsigned int* recoveredCounts,
-                        unsigned int* infectedCountResults,
-                        unsigned int* recoveredCountResults){
-    cudaFree(infectedCounts);
-    cudaFree(recoveredCounts);
-    cudaFree(infectedCountResults);
-    cudaFree(recoveredCountResults);
+extern "C" void gol_freeMem(
+                        struct City** cityData,
+                        struct InfectedCity** infectedCities,
+                        struct InfectedCity** infectedCitiesResult){
+    cudaFree(cityData);
+    cudaFree(infectedCities);
+    cudaFree(infectedCitiesResult);
 }
 
 static inline void pointer_swap( struct InfectedCity **pA, struct InfectedCity **pB)
