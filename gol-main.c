@@ -19,12 +19,19 @@ extern void covid_allocateMem( unsigned int** infectedCounts,
                         unsigned int** recoveredCountResults,
                         int numCities);
 
-extern bool covid_kernelLaunch(struct City** cityData,
+extern bool covid_intracity_kernelLaunch(struct City** cityData,
                         struct InfectedCity** allReleventInfectedCities,
                         struct InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength,
-                        ushort threadsCount,
-                        char intracity_or_spread);
+                        ushort threadsCount);
+
+extern bool covid_spread_kernelLaunch(struct City** cityData,
+                        struct InfectedCity** allReleventInfectedCities,
+                        struct InfectedCity** allReleventInfectedCitiesResult,
+                        int mySmallCityCount,
+                        int myLargeCityCount,
+                        int allLargeCityCount,
+                        ushort threadsCount);
 
 extern void covid_freeMem( unsigned int* infectedCounts,
                         unsigned int* recoveredCounts,
@@ -224,25 +231,23 @@ int main(int argc, char *argv[])
     for(i = 0; i<iterations; i++){
 
         //intra-city update
-        covid_kernelLaunch(&cityData,
+        covid_intracity_kernelLaunch(&cityData,
             &allReleventInfectedCities,
             &allReleventInfectedCitiesResult,
             smallCityCountWithinRank + largeCitiesByRank_length[myRank],
-            threadsCount,
-            'i');
+            threadsCount);
 
         //pass infectedCount of all cities to all other ranks
         //MPI_passInfectionData(allInfectedBigCities, rankDataPointers, rankLengths, myRank, numRanks, mpi_infectedCity_type, i);
 
         //spread of desease
-        /*
-        covid_kernelLaunch(&cityData,
-            allReleventInfectedCities,
-            allReleventInfectedCitiesResult,
-            smallCityCountWithinRank + allLargeCityCount,
-            threadsCount,
-            's');
-            */
+        covid_spread_kernelLaunch(&cityData,
+            &allReleventInfectedCities,
+            &allReleventInfectedCitiesResult,
+            smallCityCountWithinRank,
+            largeCitiesByRank_length[myRank],
+            allLargeCityCount,
+            threadsCount);
 
     }
 

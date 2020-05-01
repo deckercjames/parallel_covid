@@ -8,6 +8,9 @@
 #include <cuda_runtime.h>
 #include "covidTypes.h"
 
+#include <curand.h>
+#include <curand_kernel.h>
+
 
 //array used to determine edge weights (along with distance)
 //      target city rank: 1  2  3  4  5
@@ -96,7 +99,8 @@ __global__ void covid_intracity_kernel(
         //SIR Model
         //new infections
         newInfections = (int) (spreadRate * (*city).susceptibleCount * (*city).infectedCount / cityData[index].totalPopulation);
-        if(newInfections == 0 && (*city).susceptibleCount > 0) newInfections = 1;
+        //if there are both infected and suseptable people, garenty someone will get infected
+        if((*city).infectedCount > 0 && (*city).susceptibleCount > 0 && newInfections == 0) newInfections = 1;
 
         //new deaths
         newDeaths = (int) (mortalityRate * (*city).infectedCount);
@@ -126,14 +130,50 @@ __global__ void covid_spread_kernel(
                         struct City* cityData,
                         struct InfectedCity* allReleventInfectedCities,
                         struct InfectedCity* allReleventInfectedCitiesResult,
-                        int dataLength)
+                        int mySmallCityCount,
+                        int myLargeCityCount,
+                        int allLargeCityCount)
 {
+    /*
+    All of myLargeCities can be infected by any large city
+    allLargeInfectedCities[0 .. myLargeCityCount-1] are my large cities
+    allLargeInfectedCities[myLargeCityCount .. allLargeCityCount] are other large cities
+    */
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int cityIndex;
+    int j;
 
-    while(index < dataLength){
+    double probablility, rd;
 
-        //TODO
+    curandState *curand_state;
+    cudaMalloc(&curand_state, sizeof(curandState));
+    curand_init(1234, index, 0, &curand_state[index]);//(seed, sequence, offset, state)
+
+
+    while(index < myLargeCityCount){
+
+        //the index of this city is the offset of the small cities at the begening of the array
+        cityIndex = index + mySmallCityCount;
+
+        //only try to infect city[cityIndex] if it doesn't have any infections yet
+        if(allReleventInfectedCities[cityIndex].infectedCount == 0){
+
+            //all cities can infect city[cityIndex]
+            for(j = mySmallCityCount; j<mySmallCityCount+allLargeCityCount; j++){
+
+                //probability that city[j] will infect city[cityIndex]
+                probablility = 0;
+
+                //TODO write probability function
+
+                //the city at [cityIndex] gets infected
+                if(curand_uniform(curand_state+index) < probablility){
+                    allReleventInfectedCitiesResult[cityIndex].susceptibleCount = allReleventInfectedCities[cityIndex].susceptibleCount - 1;
+                    allReleventInfectedCitiesResult[cityIndex].infectedCount = 1;
+                }
+            }
+        }
 
         //increment the index
         index += blockDim.x * gridDim.x;
@@ -142,12 +182,11 @@ __global__ void covid_spread_kernel(
     
 }
 
-extern "C" bool covid_kernelLaunch(struct City** cityData,
+extern "C" bool covid_intracity_kernelLaunch(struct City** cityData,
                         struct InfectedCity** allReleventInfectedCities,
                         struct InfectedCity** allReleventInfectedCitiesResult,
                         int dataLength,
-                        ushort threadsCount,
-                        char intracity_or_spread)
+                        ushort threadsCount)
 {
 
 
@@ -155,10 +194,31 @@ extern "C" bool covid_kernelLaunch(struct City** cityData,
     int blockCount = dataLength / threadsCount;
 
     //run one itterations
-    if(intracity_or_spread == 'i')
-        covid_intracity_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
-    else if(intracity_or_spread == 's')
-        covid_spread_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
+    covid_intracity_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
+
+    pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
+
+    cudaDeviceSynchronize();
+
+    return true;
+}
+
+extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
+                        struct InfectedCity** allReleventInfectedCities,
+                        struct InfectedCity** allReleventInfectedCitiesResult,
+                        int mySmallCityCount,
+                        int myLargeCityCount,
+                        int allLargeCityCount,
+                        ushort threadsCount)
+{
+
+
+    //calculate the number of blocks based on the threads per block
+    int blockCount = myLargeCityCount / threadsCount;
+
+    //run one itterations
+    covid_spread_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult,
+        mySmallCityCount, myLargeCityCount, allLargeCityCount);
 
     pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
