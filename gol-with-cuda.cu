@@ -31,20 +31,70 @@ const double minWeight = 0.01;
 
 
 
-extern "C" void covid_allocateMem(
+extern "C" void covid_allocateMem_CityData(
+                        struct City** cityData,
+                        int numCitiesWithinRank){
+
+    int cityDataLength = numCitiesWithinRank * sizeof(struct City);
+
+    cudaMallocManaged( cityData, cityDataLength );
+
+}
+
+/*
+allocates new memory for cityData of length 'numRelevantCities'.
+Coppies all existing city data for 'numCitiesWithinRank' to the new memory
+*/
+extern "C" void covid_reallocateMem_CityData(
+                        struct City** cityData,
+                        int numCitiesWithinRank,
+                        int numRelevantCities){
+
+    int i;
+
+    int cityDataLength = numRelevantCities * sizeof(struct City);
+
+    City** newCityData;
+
+    //allocate new memory
+    cudaMallocManaged( newCityData, cityDataLength );
+
+    //copy existing cities into new memory
+    for(i = 0; i<numCitiesWithinRank; i++){
+        (*newCityData)[i] = (*cityData)[i];
+    }
+
+    //free old city data
+    cudaFree(cityData);
+
+    //set cityData to the new city data
+    *cityData = *newCityData;
+
+}
+
+/*
+allocates cuda memory for infected cities and their results. Initilizes all infected cities
+to have a suseptable population equal to their population, and no infected/recovered/dead people
+*/
+extern "C" void covid_allocateMem_InfectedCities_init(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult,
-                        int numCities,
-                        int numInfectedCities){
+                        int numRelevantCities){
+    int i;
 
-    int cityDataLength = numCities * sizeof(struct City);
-    int infectedCityDataLength = numInfectedCities * sizeof(struct InfectedCity);
-
-    cudaMallocManaged( cityData, cityDataLength);
+    int infectedCityDataLength = numRelevantCities * sizeof(struct InfectedCity);
 
     cudaMallocManaged( infectedCities,       infectedCityDataLength );
     cudaMallocManaged( infectedCitiesResult, infectedCityDataLength );
+
+    //init infected cities
+    for(i = 0; i < numRelevantCities; i++){
+        (*infectedCities)[i].susceptibleCount = (*cityData)[i].population;
+        (*infectedCities)[i].infectedCount  = 0;
+        (*infectedCities)[i].recoveredCount = 0;
+        (*infectedCities)[i].deceasedCount  = 0;
+    }
 
 }
 

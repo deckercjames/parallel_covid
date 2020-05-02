@@ -13,12 +13,20 @@
 const int iterations = 10;
 const int threadsCount = 64;
 
-extern void covid_allocateMem(
+extern void covid_allocateMem_CityData(
+                        struct City** cityData,
+                        int numCitiesWithinRank);
+
+extern void covid_reallocateMem_CityData(
+                        struct City** cityData,
+                        int numCitiesWithinRank,
+                        int numRelevantCities);
+
+extern void covid_allocateMem_InfectedCities_init(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult,
-                        int numCities,
-                        int numInfectedCities);
+                        int numRelevantCities);
 
 extern bool covid_intracity_kernelLaunch(struct City** cityData,
                         struct InfectedCity** allReleventInfectedCities,
@@ -138,13 +146,15 @@ void setupCityData(struct City* cityData, struct City** largeCitiesByRank_head,
 
     //this is to calculate the headPointers
     int headPointerCounter = numSmallCities;
+    int numCitiesWithinRank = numSmallCities + largeCitiesByRank_length[myRank];
 
     //calculate the total length
     int totalLength = numSmallCities;
     for(i = 0; i < numRanks; i++) totalLength += largeCitiesByRank_length[i];
 
     //Increase the length of the cityData to hold all Large Cities from other ranks
-    cityData = (struct City*) realloc(cityData, totalLength * sizeof(struct City));
+    // cityData = (struct City*) realloc(cityData, totalLength * sizeof(struct City));
+    covid_reallocateMem_CityData(&cityData, numCitiesWithinRank, totalLength);
 
     //calculate the head of each rank's large cities
 
@@ -188,7 +198,7 @@ int main(int argc, char *argv[])
     //stores city data for all relevent cities (in the same order as 'allReleventInfectedCities')
     //struct City releventCityData[ totalReleventCities ];
     struct City* cityData;
-    int cityDataLength, numSmallCities, numLargeCitiesWithinRank, allLargeCityCount;
+    int cityDataLength, numSmallCities, numLargeCitiesWithinRank, allLargeCityCount, numRelevantCities;
     // Current state of this rank 
     //points to dynamically allocated array of cities
     //Order:
@@ -289,6 +299,7 @@ int main(int argc, char *argv[])
     //calculate the total number of large cities
     allLargeCityCount = 0;
     for(i = 0; i<numRanks; i++) allLargeCityCount += largeCitiesByRank_length[i];
+    numRelevantCities = numSmallCities + allLargeCityCount;
 
     printf("length passed\n");
 
@@ -305,6 +316,9 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+
+    //init memory for infected cities
+    covid_allocateMem_InfectedCities_init(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult, numRelevantCities);
 
 
 
@@ -340,6 +354,9 @@ int main(int argc, char *argv[])
 
     //finalize
     MPI_Finalize();
+
+    //free memory
+    covid_freeMem(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult);
 
 
 }
@@ -420,7 +437,10 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
     //we will be reading twice the expected size at each rank
     //because most ranks will have to go over expected size
     buf = (char*) calloc(bufSize, sizeof(char));
-    *cityData = (struct City*) calloc(bufSize/180, sizeof(struct City));//approx 180 chars per line
+
+    // *cityData = (struct City*) calloc(bufSize/180, sizeof(struct City));//approx 180 chars per line
+    covid_allocateMem_CityData(cityData, bufSize/180);
+
     printf("before file open bufSize: %d startPos: %d\n", bufSize, startPos);
     MPI_File_open(MPI_COMM_WORLD, fileName, MPI_MODE_RDONLY, MPI_INFO_NULL, &f);
     printf("before read at\n");
