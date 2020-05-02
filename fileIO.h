@@ -5,20 +5,6 @@
 
 extern struct City;
 
-/*struct City{
-    int totalPopulation;
-    int density;
-
-    int cityRanking;
-    double lattitude;
-    double longitude;
-    char cityName[50];
-    char state[2];
-
-    struct City* connectedCitiesIndicies;
-    double* edgeWeights;
-};*/
-
 //takes the fileName of the csv city dataset, puts all relevant data in cityData,
 //creates connections and weights between cities
 //order of cityData: [all small cities in this rank, all larges cities in this rank]

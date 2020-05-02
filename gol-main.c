@@ -61,84 +61,117 @@ const int fileLength = 5309769;
 
 
 
-MPI_Datatype getCityDataDataType(){
+MPI_Datatype getCityDataDataType();
 
-    const int fieldCount = 7;
-    int blocklengths [fieldCount] = {50, 2, 1, 1, 1, 1, 1};
-    MPI_Datatype types [fieldCount] = 
-    {
-        MPI_CHAR, MPI_CHAR,
-        MPI_INT, MPI_INT, MPI_INT,
-        MPI_DOUBLE, MPI_DOUBLE
-    };
-
-    //check the offset of each field
-    MPI_Aint offsets [fieldCount];
-    offsets[0] = offsetof(struct City, cityName);
-    offsets[1] = offsetof(struct City, state);
-    offsets[2] = offsetof(struct City, cityRanking);
-    offsets[3] = offsetof(struct City, totalPopulation);
-    offsets[4] = offsetof(struct City, density);
-    offsets[5] = offsetof(struct City, lattitude);
-    offsets[6] = offsetof(struct City, longitude);
-
-    //the data type to be created
-    MPI_Datatype mpi_cityData_type;
-
-    //create and commit the datatype
-    MPI_Type_create_struct(fieldCount, blocklengths, offsets, types, &mpi_cityData_type);
-    MPI_Type_commit(&mpi_cityData_type);
-
-    //return the datatype to the main function
-    return mpi_cityData_type;
-
-}
-
-MPI_Datatype getInfectedCityDataType(){
-
-    const int fieldCount = 5;
-    
-    MPI_Datatype mpi_infectedCity_type;
- 
-    //create and commit the datatype
-    MPI_Type_contiguous( fieldCount, MPI_INT, &mpi_infectedCity_type );
-    MPI_Type_commit(&mpi_infectedCity_type);
-
-    //return the datatype to the main function
-    return mpi_infectedCity_type;
-
-}
+MPI_Datatype getInfectedCityDataType();
 
 
-void MPI_passInfectionData(struct InfectedCity* allReleventInfectedCities,
-                            struct InfectedCity** largeCitiesByRank_head, int* largeCitiesByRank_length,
-                            int myRank, int numRanks,
-                            MPI_Datatype mpi_infectedCity_type,
-                            int iteration){
+void MPI_passNumberOfLargeCities(int* largeCitiesByRank_length, int myRank, int numRanks){
+
     int i;
-    int tag = iteration * 10;
 
     MPI_Request request0, request1;
     MPI_Status status;
 
-    //setup to recieve data
+    //receive the number of large cites from all other ranks
     for(i = 0; i<numRanks; i++){
         if(i==myRank) continue;
         // Exchange row data with MPI Ranks using MPI_Isend/Irecv.
-        //                 data                       length             data type  source   tag        MPI_COMM    MPI_Request
-        MPI_Irecv(largeCitiesByRank_head[i], largeCitiesByRank_length[i], MPI_INT,     i,    tag+1,  MPI_COMM_WORLD, &request0);
+        //                  data               length   data type  source  tag    MPI_COMM    MPI_Request
+        MPI_Irecv(largeCitiesByRank_length+i,    1,     MPI_INT,     i,    1,  MPI_COMM_WORLD, &request0);
     }
 
-    //send data
+    //send the number of large cities in my rank to all other ranks
     for(i = 0; i<numRanks; i++){
         if(i==myRank) continue;
-        //                 data                       length                   data type          dest     tag          MPI_COMM     MPI_Request
-        MPI_Isend(largeCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_infectedCity_type,   i,   iteration,  MPI_COMM_WORLD, &request1);
+        //                  data                    length  data type    dest  tag     MPI_COMM     MPI_Request
+        MPI_Isend(largeCitiesByRank_length+myRank,    1,    MPI_INT,     i,    1,  MPI_COMM_WORLD, &request1);
     }
 
     MPI_Wait(&request0, &status);
     MPI_Wait(&request1, &status);
+
 }
+
+void MPI_passLargeCities(struct City** largeCitiesByRank_head,
+                            MPI_Datatype mpi_cityData_type,
+                            int* largeCitiesByRank_length, 
+                            int myRank, int numRanks)
+{
+
+    int i;
+
+    MPI_Request request0, request1;
+    MPI_Status status;
+
+    //receive the large cites from all other ranks
+    for(i = 0; i<numRanks; i++){
+        if(i==myRank) continue;
+        // Exchange row data with MPI Ranks using MPI_Isend/Irecv.
+        printf("myRank: %d, recieving from: %d, length %d\n", myRank, i, largeCitiesByRank_length[i]);
+        //                  data                      length                 data type       source  tag    MPI_COMM     MPI_Request
+        MPI_Irecv(largeCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_cityData_type,    i,    1,  MPI_COMM_WORLD, &request0);
+    }
+
+    //send the large cities in my rank to all other ranks
+    for(i = 0; i<numRanks; i++){
+        if(i==myRank) continue;
+        //                  data                            length                    data type       dest   tag     MPI_COMM     MPI_Request
+        MPI_Isend(largeCitiesByRank_head[myRank], largeCitiesByRank_length[myRank], mpi_cityData_type,  i,    1,  MPI_COMM_WORLD, &request1);
+    }
+
+    MPI_Wait(&request0, &status);
+    MPI_Wait(&request1, &status);
+
+}
+
+/*
+Uses the 'numSmallCities' and numLargeCities for each rank to reallocate the correct amount of memory
+for cityData and copy all existing cities to the new array. Also calculated the head of each rank's data
+*/
+void setupCityData(struct City* cityData, struct City** largeCitiesByRank_head,
+                        struct InfectedCity* allReleventInfectedCities, struct InfectedCity** largeInfectedCitiesByRank_head,
+                        int numSmallCities, int* largeCitiesByRank_length, int myRank, int numRanks)
+{
+
+    int i;
+
+    //this is to calculate the headPointers
+    int headPointerCounter = numSmallCities;
+
+    //calculate the total length
+    int totalLength = numSmallCities;
+    for(i = 0; i < numRanks; i++) totalLength += largeCitiesByRank_length[i];
+
+    //Increase the length of the cityData to hold all Large Cities from other ranks
+    cityData = (struct City*) realloc(cityData, totalLength * sizeof(struct City));
+
+    //calculate the head of each rank's large cities
+
+    //first it the large cities in this rank
+    largeCitiesByRank_head[myRank] = cityData + headPointerCounter;
+    largeInfectedCitiesByRank_head[myRank] = allReleventInfectedCities + headPointerCounter;
+    headPointerCounter += largeCitiesByRank_length[myRank];
+    //next, all other rank's large cities
+    for(i = 0; i<numRanks; i++){
+        if(i == myRank) continue;//ignore my rank
+
+        //set the head of the large city section for rank i
+        largeCitiesByRank_head[i]         = cityData + headPointerCounter;
+        largeInfectedCitiesByRank_head[i] = allReleventInfectedCities + headPointerCounter;
+        //increemnt the headPointer counter
+        headPointerCounter += largeCitiesByRank_length[i];
+    }
+
+}
+
+// void MPI_passLargeCityData(struct City*)
+
+
+void MPI_passInfectionData(struct InfectedCity** largeCitiesByRank_head, int* largeCitiesByRank_length,
+                            int myRank, int numRanks,
+                            MPI_Datatype mpi_infectedCity_type,
+                            int iteration);
 
 
 int main(int argc, char *argv[])
@@ -149,18 +182,13 @@ int main(int argc, char *argv[])
     //declare variables
     int i;
 
-    int smallCityCountWithinRank;
-    int allLargeCityCount;
-    int totalReleventCities = smallCityCountWithinRank + allLargeCityCount;
-
-
     //Graph
 
     //declare city array
     //stores city data for all relevent cities (in the same order as 'allReleventInfectedCities')
     //struct City releventCityData[ totalReleventCities ];
     struct City* cityData;
-    int cityDataLength, numSmallCities;
+    int cityDataLength, numSmallCities, numLargeCitiesWithinRank, allLargeCityCount;
     // Current state of this rank 
     //points to dynamically allocated array of cities
     //Order:
@@ -169,8 +197,9 @@ int main(int argc, char *argv[])
     struct InfectedCity* allReleventInfectedCitiesResult = 0;
 
     //store where in 
-    struct InfectedCity** largeCitiesByRank_head; //rankDataPointers[i] = pointer to start of the section of data in 'allReleventInfectedCities' for rank i
-    int* largeCitiesByRank_length; //rankLength[i] = number of big cities in rank i (length to read from head of rankDataPointers)
+    struct City**         largeCitiesByRank_head;         //[i] = pointer to start of the section of data in 'cityData' for rank i
+    struct InfectedCity** largeInfectedCitiesByRank_head; //[i] = pointer to start of the section of data in 'allReleventInfectedCities' for rank i
+    int*                  largeCitiesByRank_length;       //[i] = number of big cities in rank i (length to read from head)
 
 
     //rank data
@@ -190,16 +219,11 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
     MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
 
-    //allocate memory for mpi passing pointer
-    struct InfectedCity** rankDataPointers = (struct InfectedCity**) malloc(numRanks * sizeof(struct InfectedCity*));
-    int* rankLengths = (int*) malloc(numRanks * sizeof(int));
-
-
-    //allocate memory for cityData, infectedCount/Result
-    //covid_allocateMem(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult, allCityCount, myCityCount);
-
     //read in city data
     readFile(filename, fileLength, myRank, numRanks, &cityData, &cityDataLength, &numSmallCities);
+
+    //set the number of large cities within this rank
+    numLargeCitiesWithinRank = cityDataLength - numSmallCities;
 
     printf("cityDataLen: %d numSmallCities: %d rank: %d\n", cityDataLength, numSmallCities, myRank);
     
@@ -250,14 +274,41 @@ int main(int argc, char *argv[])
             cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
         }
     }
+    MPI_Barrier(MPI_COMM_WORLD);
 
 
-    //pass city data to all other ranks
+    //PASS LARGE CITY DATA TO ALL OTHER RANKS
+    largeCitiesByRank_length       = (int*)                  malloc(numRanks * sizeof(int));
+    largeCitiesByRank_head         = (struct City**)         malloc(numRanks * sizeof(struct City*));
+    largeInfectedCitiesByRank_head = (struct InfectedCity**) malloc(numRanks * sizeof(struct InfectedCity*));
 
-    //create adjacency list
+    //first pass the number of large cities to all other ranks so they know how many to recieve
+    largeCitiesByRank_length[myRank] = numLargeCitiesWithinRank;
+    MPI_passNumberOfLargeCities(largeCitiesByRank_length, myRank, numRanks);
 
-    //start infection
+    //calculate the total number of large cities
+    allLargeCityCount = 0;
+    for(i = 0; i<numRanks; i++) allLargeCityCount += largeCitiesByRank_length[i];
 
+    printf("length passed\n");
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //set up cityData now the number of large cities in each rank is known
+    setupCityData(cityData, largeCitiesByRank_head,
+        allReleventInfectedCities, largeInfectedCitiesByRank_head,
+        numSmallCities, largeCitiesByRank_length, myRank, numRanks);
+
+    MPI_passLargeCities(largeCitiesByRank_head, mpi_cityData_type, largeCitiesByRank_length, myRank, numRanks);
+
+    printf("large cities passed\n");
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+
+    //INFECTION ITERATIONS
 /*
     for(i = 0; i<iterations; i++){
 
@@ -265,22 +316,24 @@ int main(int argc, char *argv[])
         covid_intracity_kernelLaunch(&cityData,
             &allReleventInfectedCities,
             &allReleventInfectedCitiesResult,
-            smallCityCountWithinRank + largeCitiesByRank_length[myRank],
+            numSmallCities + largeCitiesByRank_length[myRank],
             threadsCount);
 
         //pass infectedCount of all cities to all other ranks
-        //MPI_passInfectionData(allInfectedBigCities, rankDataPointers, rankLengths, myRank, numRanks, mpi_infectedCity_type, i);
+        MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
 
         //spread of desease
         covid_spread_kernelLaunch(&cityData,
             &allReleventInfectedCities,
             &allReleventInfectedCitiesResult,
-            smallCityCountWithinRank,
-            largeCitiesByRank_length[myRank],
+            numSmallCities,
+            numLargeCitiesWithinRank,
             allLargeCityCount,
             threadsCount);
 
-    }*/
+    }
+    */
+
 
     //write results
 
@@ -291,6 +344,53 @@ int main(int argc, char *argv[])
 
 }
 
+MPI_Datatype getCityDataDataType()
+{
+
+    const int fieldCount = 7;
+    int blocklengths [fieldCount] = {50, 2, 1, 1, 1, 1, 1};
+    MPI_Datatype types [fieldCount] = 
+    {
+        MPI_CHAR, MPI_CHAR,
+        MPI_INT, MPI_INT, MPI_INT,
+        MPI_DOUBLE, MPI_DOUBLE
+    };
+
+    //check the offset of each field
+    MPI_Aint offsets [fieldCount];
+    offsets[0] = offsetof(struct City, cityName);
+    offsets[1] = offsetof(struct City, state);
+    offsets[2] = offsetof(struct City, cityRanking);
+    offsets[3] = offsetof(struct City, totalPopulation);
+    offsets[4] = offsetof(struct City, density);
+    offsets[5] = offsetof(struct City, lattitude);
+    offsets[6] = offsetof(struct City, longitude);
+
+    //the data type to be created
+    MPI_Datatype mpi_cityData_type;
+
+    //create and commit the datatype
+    MPI_Type_create_struct(fieldCount, blocklengths, offsets, types, &mpi_cityData_type);
+    MPI_Type_commit(&mpi_cityData_type);
+
+    //return the datatype to the main function
+    return mpi_cityData_type;
+}
+
+
+MPI_Datatype getInfectedCityDataType()
+{
+    const int fieldCount = 5;
+    
+    MPI_Datatype mpi_infectedCity_type;
+ 
+    //create and commit the datatype
+    MPI_Type_contiguous( fieldCount, MPI_INT, &mpi_infectedCity_type );
+    MPI_Type_commit(&mpi_infectedCity_type);
+
+    //return the datatype to the main function
+    return mpi_infectedCity_type;
+}
 
 
 void readFile(const char* fileName, int numChars, int rank, int numRanks, 
@@ -412,3 +512,41 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
     *numSmallCities = smallCityIndex;
     free(buf);
 }
+
+
+
+
+
+void MPI_passInfectionData(struct InfectedCity** largeInfectedCitiesByRank_head, int* largeCitiesByRank_length,
+                            int myRank, int numRanks,
+                            MPI_Datatype mpi_infectedCity_type,
+                            int iteration)
+{
+    int i;
+    int tag = iteration * 10;
+
+    MPI_Request request0, request1;
+    MPI_Status status;
+
+    //setup to recieve data
+    for(i = 0; i<numRanks; i++){
+        if(i==myRank) continue;
+        // Exchange row data with MPI Ranks using MPI_Isend/Irecv.
+        //                 data                               length             data type  source   tag        MPI_COMM    MPI_Request
+        MPI_Irecv(largeInfectedCitiesByRank_head[i], largeCitiesByRank_length[i], MPI_INT,     i,    tag + i,  MPI_COMM_WORLD, &request0);
+    }
+
+    //send data
+    for(i = 0; i<numRanks; i++){
+        if(i==myRank) continue;
+        //                 data                              length                   data type          dest     tag       MPI_COMM     MPI_Request
+        MPI_Isend(largeInfectedCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_infectedCity_type,   i,   tag + i,  MPI_COMM_WORLD, &request1);
+    }
+
+    MPI_Wait(&request0, &status);
+    MPI_Wait(&request1, &status);
+}
+
+
+
+
