@@ -10,7 +10,7 @@
 
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 10;
+const int iterations = 1;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(
@@ -323,8 +323,10 @@ int main(int argc, char *argv[])
 
 
     //INFECTION ITERATIONS
-/*
+
     for(i = 0; i<iterations; i++){
+
+        printf("rank %d, iteration %d\n", myRank, i);
 
         //intra-city update
         covid_intracity_kernelLaunch(&cityData,
@@ -334,19 +336,19 @@ int main(int argc, char *argv[])
             threadsCount);
 
         //pass infectedCount of all cities to all other ranks
-        MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
+        // MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
 
         //spread of desease
-        covid_spread_kernelLaunch(&cityData,
-            &allReleventInfectedCities,
-            &allReleventInfectedCitiesResult,
-            numSmallCities,
-            numLargeCitiesWithinRank,
-            allLargeCityCount,
-            threadsCount);
+        // covid_spread_kernelLaunch(&cityData,
+        //     &allReleventInfectedCities,
+        //     &allReleventInfectedCitiesResult,
+        //     numSmallCities,
+        //     numLargeCitiesWithinRank,
+        //     allLargeCityCount,
+        //     threadsCount);
 
     }
-    */
+    
 
 
     //write results

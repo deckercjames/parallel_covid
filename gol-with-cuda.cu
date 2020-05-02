@@ -54,7 +54,7 @@ extern "C" void covid_reallocateMem_CityData(
 
     int cityDataLength = numRelevantCities * sizeof(struct City);
 
-    City** newCityData;
+    City** newCityData = 0;
 
     //allocate new memory
     cudaMallocManaged( newCityData, cityDataLength );
@@ -90,7 +90,7 @@ extern "C" void covid_allocateMem_InfectedCities_init(
 
     //init infected cities
     for(i = 0; i < numRelevantCities; i++){
-        (*infectedCities)[i].susceptibleCount = (*cityData)[i].population;
+        (*infectedCities)[i].susceptibleCount = (*cityData)[i].totalPopulation;
         (*infectedCities)[i].infectedCount  = 0;
         (*infectedCities)[i].recoveredCount = 0;
         (*infectedCities)[i].deceasedCount  = 0;
