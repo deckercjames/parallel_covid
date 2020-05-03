@@ -117,7 +117,6 @@ void MPI_passLargeCities(struct City** largeCitiesByRank_head,
     for(i = 0; i<numRanks; i++){
         if(i==myRank) continue;
         // Exchange row data with MPI Ranks using MPI_Isend/Irecv.
-        printf("myRank: %d, recieving from: %d, length %d\n", myRank, i, largeCitiesByRank_length[i]);
         //                  data                      length                 data type       source  tag    MPI_COMM     MPI_Request
         MPI_Irecv(largeCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_cityData_type,    i,    1,  MPI_COMM_WORLD, &request0);
     }
@@ -314,11 +313,11 @@ int main(int argc, char *argv[])
     for(i = 0; i<numRanks; i++){
         MPI_Barrier(MPI_COMM_WORLD);
         if(myRank != i) continue;
-        printf("Rank: %2d  totalCitiesInRank: %8d    small: %d    large: [%d] %8d", 
+        printf("Rank: %2d  totalCitiesInRank: %8d    small: %d    large: [%d] %5d", 
             myRank, (numSmallCities+numLargeCitiesWithinRank), numSmallCities, myRank, numLargeCitiesWithinRank);
         for(j = 0; j<numRanks; j++){
             if(j == myRank) continue;
-            printf("     [%d] %8d", j, largeCitiesByRank_length[j]);
+            printf("     [%d] %5d", j, largeCitiesByRank_length[j]);
         }
         printf("\n");
     }

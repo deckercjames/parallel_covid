@@ -195,11 +195,12 @@ __global__ void covid_spread_kernel(
     int cityIndex;
     int j;
 
-    double probablility, rd;
+    double probablility;
 
-    curandState *curand_state;
-    cudaMalloc(&curand_state, sizeof(curandState));
-    curand_init(1234, index, 0, &curand_state[index]);//(seed, sequence, offset, state)
+    //random probability generator
+    double rd;
+    curandState curand_state;
+    curand_init(1235, index, 0, &curand_state);//(seed, sequence, offset, state)
 
 
     while(index < myLargeCityCount){
@@ -219,7 +220,8 @@ __global__ void covid_spread_kernel(
                 //TODO write probability function
 
                 //the city at [cityIndex] gets infected
-                if(curand_uniform(curand_state+index) < probablility){
+                rd = curand_uniform(&curand_state);
+                if(rd < probablility){
                     allReleventInfectedCitiesResult[cityIndex].susceptibleCount = allReleventInfectedCities[cityIndex].susceptibleCount - 1;
                     allReleventInfectedCitiesResult[cityIndex].infectedCount = 1;
                 }
