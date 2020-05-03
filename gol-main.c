@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     printf("hello world\n");
 
     //declare variables
-    int i;
+    int i, j;
 
     //Graph
 
@@ -309,7 +309,19 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    printf("rank: %d City[0] pop: %d\n", myRank, cityData[0].totalPopulation);
+    //DEBUG LENGTHS
+    if(myRank == 0) printf("All lengths for all ranks: \n");
+    for(i = 0; i<numRanks; i++){
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(myRank != i) continue;
+        printf("Rank: %2d  totalCitiesInRank: %8d    small: %d    large: [%d] %8d", 
+            myRank, (numSmallCities+numLargeCitiesWithinRank), numSmallCities, myRank, numLargeCitiesWithinRank);
+        for(j = 0; j<numRanks; j++){
+            if(j == myRank) continue;
+            printf("     [%d] %8d", j, largeCitiesByRank_length[j]);
+        }
+        printf("\n");
+    }
 
     //set up cityData now the number of large cities in each rank is known
     setupCityData(&cityData, largeCitiesByRank_head,
