@@ -47,28 +47,28 @@ Coppies all existing city data for 'numCitiesWithinRank' to the new memory
 */
 extern "C" void covid_reallocateMem_CityData(
                         struct City** cityData,
+                        struct City** cityDataTemp,
                         int numCitiesWithinRank,
                         int numRelevantCities){
 
     int i;
 
-    int cityDataLength = numRelevantCities * sizeof(struct City);
-
-    City** newCityData = 0;
+    //calculate the new length for city data
+    int newCityDataLength = numRelevantCities * sizeof(struct City);
 
     //allocate new memory
-    cudaMallocManaged( newCityData, cityDataLength );
+    cudaMallocManaged( cityDataTemp, newCityDataLength );
 
     //copy existing cities into new memory
     for(i = 0; i<numCitiesWithinRank; i++){
-        (*newCityData)[i] = (*cityData)[i];
+        (*cityDataTemp)[i] = (*cityData)[i];
     }
 
     //free old city data
     cudaFree(cityData);
 
     //set cityData to the new city data
-    *cityData = *newCityData;
+    *cityData = *cityDataTemp;
 
 }
 

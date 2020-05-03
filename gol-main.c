@@ -19,6 +19,7 @@ extern void covid_allocateMem_CityData(
 
 extern void covid_reallocateMem_CityData(
                         struct City** cityData,
+                        struct City** cityDataTemp,
                         int numCitiesWithinRank,
                         int numRelevantCities);
 
@@ -137,12 +138,14 @@ void MPI_passLargeCities(struct City** largeCitiesByRank_head,
 Uses the 'numSmallCities' and numLargeCities for each rank to reallocate the correct amount of memory
 for cityData and copy all existing cities to the new array. Also calculated the head of each rank's data
 */
-void setupCityData(struct City* cityData, struct City** largeCitiesByRank_head,
+void setupCityData(struct City** cityData, struct City** largeCitiesByRank_head,
                         struct InfectedCity* allReleventInfectedCities, struct InfectedCity** largeInfectedCitiesByRank_head,
                         int numSmallCities, int* largeCitiesByRank_length, int myRank, int numRanks)
 {
 
     int i;
+
+    struct City* cityDataTemp;
 
     //this is to calculate the headPointers
     int headPointerCounter = numSmallCities;
@@ -154,12 +157,12 @@ void setupCityData(struct City* cityData, struct City** largeCitiesByRank_head,
 
     //Increase the length of the cityData to hold all Large Cities from other ranks
     // cityData = (struct City*) realloc(cityData, totalLength * sizeof(struct City));
-    covid_reallocateMem_CityData(&cityData, numCitiesWithinRank, totalLength);
+    covid_reallocateMem_CityData(cityData, &cityDataTemp, numCitiesWithinRank, totalLength);
 
     //calculate the head of each rank's large cities
 
     //first it the large cities in this rank
-    largeCitiesByRank_head[myRank] = cityData + headPointerCounter;
+    largeCitiesByRank_head[myRank] = *cityData + headPointerCounter;
     largeInfectedCitiesByRank_head[myRank] = allReleventInfectedCities + headPointerCounter;
     headPointerCounter += largeCitiesByRank_length[myRank];
     //next, all other rank's large cities
@@ -167,7 +170,7 @@ void setupCityData(struct City* cityData, struct City** largeCitiesByRank_head,
         if(i == myRank) continue;//ignore my rank
 
         //set the head of the large city section for rank i
-        largeCitiesByRank_head[i]         = cityData + headPointerCounter;
+        largeCitiesByRank_head[i]         = *cityData + headPointerCounter;
         largeInfectedCitiesByRank_head[i] = allReleventInfectedCities + headPointerCounter;
         //increemnt the headPointer counter
         headPointerCounter += largeCitiesByRank_length[i];
@@ -288,6 +291,7 @@ int main(int argc, char *argv[])
 
 
     //PASS LARGE CITY DATA TO ALL OTHER RANKS
+
     largeCitiesByRank_length       = (int*)                  malloc(numRanks * sizeof(int));
     largeCitiesByRank_head         = (struct City**)         malloc(numRanks * sizeof(struct City*));
     largeInfectedCitiesByRank_head = (struct InfectedCity**) malloc(numRanks * sizeof(struct InfectedCity*));
@@ -305,8 +309,10 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+    printf("rank: %d City[0] pop: %d\n", myRank, cityData[0].totalPopulation);
+
     //set up cityData now the number of large cities in each rank is known
-    setupCityData(cityData, largeCitiesByRank_head,
+    setupCityData(&cityData, largeCitiesByRank_head,
         allReleventInfectedCities, largeInfectedCitiesByRank_head,
         numSmallCities, largeCitiesByRank_length, myRank, numRanks);
 
@@ -329,11 +335,11 @@ int main(int argc, char *argv[])
         printf("rank %d, iteration %d\n", myRank, i);
 
         //intra-city update
-        covid_intracity_kernelLaunch(&cityData,
-            &allReleventInfectedCities,
-            &allReleventInfectedCitiesResult,
-            numSmallCities + largeCitiesByRank_length[myRank],
-            threadsCount);
+        // covid_intracity_kernelLaunch(&cityData,
+        //     &allReleventInfectedCities,
+        //     &allReleventInfectedCitiesResult,
+        //     numSmallCities + largeCitiesByRank_length[myRank],
+        //     threadsCount);
 
         //pass infectedCount of all cities to all other ranks
         // MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
@@ -359,6 +365,9 @@ int main(int argc, char *argv[])
 
     //free memory
     covid_freeMem(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult);
+    free(largeCitiesByRank_length);
+    free(largeCitiesByRank_head);
+    free(largeInfectedCitiesByRank_head);
 
 
 }
