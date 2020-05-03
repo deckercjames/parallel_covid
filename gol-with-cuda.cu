@@ -94,6 +94,7 @@ extern "C" void covid_allocateMem_InfectedCities_init(
         (*infectedCities)[i].infectedCount  = 0;
         (*infectedCities)[i].recoveredCount = 0;
         (*infectedCities)[i].deceasedCount  = 0;
+        (*infectedCities)[i].iterationOfInfection  = -1;
     }
 
 }
@@ -126,6 +127,7 @@ __global__ void covid_intracity_kernel(
                         int dataLength)
 {
 
+    
     //parameters for SIR model
     //TODO make these arguements when running the program
     double spreadRate = 2.2;
@@ -160,6 +162,11 @@ __global__ void covid_intracity_kernel(
         newRecoveries = (int) (recoveryRate * (*city).infectedCount);
         if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
 
+        if(cityData[index].totalPopulation == 6045 && cityData[index].density == 2318){
+            // printf("index %d\n", index);
+            printf("Elsmere newInfections %d\n", newInfections);
+            printf("Elsmere newRecoveries %d\n", newInfections);
+        }
 
         //Calculated city results
         (*cityResult).susceptibleCount = (*city).susceptibleCount - newInfections;
@@ -200,7 +207,7 @@ __global__ void covid_spread_kernel(
     //random probability generator
     double rd;
     curandState curand_state;
-    curand_init(1235, index, 0, &curand_state);//(seed, sequence, offset, state)
+    curand_init(clock64(), index, 0, &curand_state);//(seed, sequence, offset, state)
 
 
     while(index < myLargeCityCount){
