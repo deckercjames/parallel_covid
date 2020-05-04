@@ -43,16 +43,8 @@ __device__ const double maxSpreadDistances[5][5] =
 //has the base spreadLogBase
 const double spreadLogBase = 10;
 
-<<<<<<< HEAD
-
-
-__device__ double deg2rad(double deg) {
-  return (deg * pi / 180);
-}
-
-__device__ double rad2deg(double rad) {
-  return (rad * 180 / pi);
-}
+__device__ double deg2rad(double);
+__device__ double rad2deg(double);
 
 __device__ char * my_strcpy(char *dest, const char *src){
     int i = 0;
@@ -88,6 +80,13 @@ __device__ double coor2distance(double lat1, double lon1, double lat2, double lo
     dist = dist * 60 * 1.1515;
     return (dist);
   }
+}
+
+__device__ double deg2rad(double deg) {
+  return (deg * pi / 180);
+}
+__device__ double rad2deg(double rad) {
+  return (rad * 180 / pi);
 }
 
 extern "C" void covid_allocateMem_CityData(
@@ -174,16 +173,6 @@ __device__ double getDistance(struct City* city1, struct City* city2){
     return coor2distance(city1->lattitude, city1->longitude, city2->lattitude, city2->longitude);
 }
 
-static inline void pointer_swap( struct InfectedCity **pA, struct InfectedCity **pB)
-{
-    // You write this function - it should swap the pointers of pA and pB.
-    //declare a temp to store A
-    struct InfectedCity * temp = *pA;
-    //set a to b
-    *pA = *pB;
-    //set b to the stored val of a
-    *pB = temp;
-}
 
 
 __global__ void covid_intracity_kernel(
@@ -228,10 +217,10 @@ __global__ void covid_intracity_kernel(
         newRecoveries = (int) (recoveryRate * (*city).infectedCount);
         if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
         if(newRecoveries > city->infectedCount) newRecoveries = city->infectedCount;
-        if(cityData[index].totalPopulation == 6045 && cityData[index].density == 2318){
+        if(cityData[index].totalPopulation == 2629150){
             // printf("index %d\n", index);
-            printf("Elsmere newInfections %d\n", newInfections);
-            printf("Elsmere newRecoveries %d\n", newInfections);
+            printf("Brooklyn newInfections %d\n", newInfections);
+            printf("Brooklyn newRecoveries %d\n", newRecoveries);
         }
 
         //Calculated city results
@@ -375,40 +364,3 @@ extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
 
 
 
-static __inline__ ticks getticks(void)
-    {
-    unsigned int tbl, tbu0, tbu1;
-    do {
-        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu0));
-        __asm__ __volatile__ ("mftb %0" : "=r"(tbl));
-        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu1));
-    } while (tbu0 != tbu1);
-    return ((((unsigned long long)tbu0) << 32) | tbl);
-}
-
-
-
-
-
-
-__global__ void smallCityConnectionsKernel(struct City** cityData, int dataLength){
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int i;
-    while(index < dataLength){
-        
-        for(i = 0; i < dataLength; i++){
-
-        }
-
-        index += blockDim.x * gridDim.x;
-
-    }
-
-}
-
-//this should be called before spreading large cities to all ranks
-extern "C" void smallCityConnectionsKernelLaunch(struct City** cityData, int dataLength, int threadCount){
-    int blockCount = dataLength/threadCount;
-
-
-}

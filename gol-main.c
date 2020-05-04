@@ -8,9 +8,14 @@
 #include "mpi.h"
 #include "covidTypes.h"
 
+
+
+typedef unsigned long long ticks;
+
+
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 10;
+const int iterations = 5;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(
@@ -50,7 +55,6 @@ extern void covid_freeMem(
                         struct InfectedCity** infectedCitiesResult);
 
 
-
 //takes the fileName of the csv city dataset, puts all relevant data in cityData,
 //creates connections and weights between cities
 //order of cityData: [all small cities in this rank, all larges cities in this rank]
@@ -69,6 +73,16 @@ struct City** cityData, int* cityDataLength, int* numSmallCities);
 const char filename[50] = "uscities.csv";
 const int fileLength = 5309769;
 
+static __inline__ ticks getticks(void)
+{
+    unsigned int tbl, tbu0, tbu1;
+    do {
+        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu0));
+        __asm__ __volatile__ ("mftb %0" : "=r"(tbl));
+        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu1));
+    } while (tbu0 != tbu1);
+    return ((((unsigned long long)tbu0) << 32) | tbl);
+}
 
 
 MPI_Datatype getCityDataDataType();
@@ -228,6 +242,39 @@ void printLargeCitySample( struct City** largeCitiesByRank_head,
     }
 }
 
+void printNYCities(struct City* cityData, struct InfectedCity* infectedData, int myCityCount, int myRank){
+
+    int i;
+
+    if(myRank != 1) return;
+
+    printf("rank: %d %19s %10s %10s %10s %10s %10s %10s\n", myRank, "name", "population", "suseptable", "infected", "recovered", "deseased", "itr");
+
+    for(i = 0; i<myCityCount; i++){
+
+        if(strcmp(cityData[i].state, "NY") != 0) continue;
+
+        if(cityData[i].cityName[0] != 'B') continue;
+        if(cityData[i].cityName[1] != 'r') continue;
+
+        printf("rank: %d %14.14s, %2s: %10d %10d %10d %10d %10d %10d",
+            myRank,
+            cityData[i].cityName,
+            cityData[i].state,
+            cityData[i].totalPopulation,
+            infectedData[i].susceptibleCount,
+            infectedData[i].infectedCount,
+            infectedData[i].recoveredCount,
+            infectedData[i].deceasedCount,
+            infectedData[i].iterationOfInfection
+        );
+
+        if(strcmp(cityData[i].cityName, "Brooklyn") == 0) printf("<=====");
+        printf("\n");
+    }
+
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -264,6 +311,9 @@ int main(int argc, char *argv[])
 
 
     double runtime = 0;
+    ticks computationTicks = 0;
+    ticks passingTicks = 0;
+    ticks startTick = 0;
 
     // Setup MPI
     MPI_Init(&argc, &argv);
@@ -361,6 +411,7 @@ int main(int argc, char *argv[])
 
     //debug
     printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
+    printNYCities(cityData, allReleventInfectedCities, cityDataLength, myRank);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -371,32 +422,42 @@ int main(int argc, char *argv[])
         printf("rank %d, iteration %d\n", myRank, i);
 
         //intra-city update
+        startTick = getticks();
         covid_intracity_kernelLaunch(&cityData,
             &allReleventInfectedCities,
             &allReleventInfectedCitiesResult,
             cityDataLength,
             threadsCount);
+        computationTicks += (getticks() - startTick);
         data_result_swap(&allReleventInfectedCities, &allReleventInfectedCitiesResult,
             &largeInfectedCitiesByRank_head, &largeInfectedCitiesResultByRank_head);
+
 
         MPI_Barrier(MPI_COMM_WORLD);
 
         //debug
         printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
+        MPI_Barrier(MPI_COMM_WORLD);
+        printNYCities(cityData, allReleventInfectedCities, cityDataLength, myRank);
+        MPI_Barrier(MPI_COMM_WORLD);
 
         //pass infectedCount of all cities to all other ranks
+        startTick = getticks();
         MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
+        passingTicks += (getticks() - startTick);
 
         //spread of desease
-        covid_spread_kernelLaunch(&cityData,
-            &allReleventInfectedCities,
-            &allReleventInfectedCitiesResult,
-            numSmallCities,
-            numLargeCitiesWithinRank,
-            allLargeCityCount,
-            threadsCount);
-        data_result_swap(&allReleventInfectedCities, &allReleventInfectedCitiesResult,
-            &largeInfectedCitiesByRank_head, &largeInfectedCitiesResultByRank_head);
+        // startTick = getticks();
+        // covid_spread_kernelLaunch(&cityData,
+        //     &allReleventInfectedCities,
+        //     &allReleventInfectedCitiesResult,
+        //     numSmallCities,
+        //     numLargeCitiesWithinRank,
+        //     allLargeCityCount,
+        //     threadsCount);
+        // computationTicks += (getticks() - startTick);
+        // data_result_swap(&allReleventInfectedCities, &allReleventInfectedCitiesResult,
+        //     &largeInfectedCitiesByRank_head, &largeInfectedCitiesResultByRank_head);
 
     }
     
@@ -410,6 +471,8 @@ int main(int argc, char *argv[])
     if(myRank == 0){
         runtime = MPI_Wtime();
         printf("MPI running time: %f\n", runtime);
+        printf("computationTicks: %llu\n", computationTicks);
+        printf("passingTicks:     %llu\n", passingTicks);
     }
 
 
@@ -430,7 +493,7 @@ MPI_Datatype getCityDataDataType()
 {
 
     const int fieldCount = 7;
-    int blocklengths [fieldCount] = {50, 2, 1, 1, 1, 1, 1};
+    int blocklengths [fieldCount] = {50, 3, 1, 1, 1, 1, 1};
     MPI_Datatype types [fieldCount] = 
     {
         MPI_CHAR, MPI_CHAR,

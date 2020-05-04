@@ -2,7 +2,7 @@ typedef struct City City;
 struct City{
 
     char cityName[50];
-    char state[2];
+    char state[3];
 
     int cityRanking;
     
