@@ -108,16 +108,9 @@ extern "C" void covid_freeMem(
     cudaFree(infectedCitiesResult);
 }
 
-static inline void pointer_swap( struct InfectedCity **pA, struct InfectedCity **pB)
-{
-    // You write this function - it should swap the pointers of pA and pB.
-    //declare a temp to store A
-    struct InfectedCity * temp = *pA;
-    //set a to b
-    *pA = *pB;
-    //set b to the stored val of a
-    *pB = temp;
-}
+
+
+
 
 
 __global__ void covid_intracity_kernel(
@@ -128,6 +121,7 @@ __global__ void covid_intracity_kernel(
 {
 
     
+
     //parameters for SIR model
     //TODO make these arguements when running the program
     double spreadRate = 2.2;
@@ -161,12 +155,6 @@ __global__ void covid_intracity_kernel(
         //new recoveries
         newRecoveries = (int) (recoveryRate * (*city).infectedCount);
         if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
-
-        if(cityData[index].totalPopulation == 6045 && cityData[index].density == 2318){
-            // printf("index %d\n", index);
-            printf("Elsmere newInfections %d\n", newInfections);
-            printf("Elsmere newRecoveries %d\n", newInfections);
-        }
 
         //Calculated city results
         (*cityResult).susceptibleCount = (*city).susceptibleCount - newInfections;
@@ -255,8 +243,6 @@ extern "C" bool covid_intracity_kernelLaunch(struct City** cityData,
 
     //run one itterations
     covid_intracity_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
-
-    pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
     cudaDeviceSynchronize();
 
