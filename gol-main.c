@@ -388,13 +388,15 @@ int main(int argc, char *argv[])
         MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
 
         //spread of desease
-        // covid_spread_kernelLaunch(&cityData,
-        //     &allReleventInfectedCities,
-        //     &allReleventInfectedCitiesResult,
-        //     numSmallCities,
-        //     numLargeCitiesWithinRank,
-        //     allLargeCityCount,
-        //     threadsCount);
+        covid_spread_kernelLaunch(&cityData,
+            &allReleventInfectedCities,
+            &allReleventInfectedCitiesResult,
+            numSmallCities,
+            numLargeCitiesWithinRank,
+            allLargeCityCount,
+            threadsCount);
+        data_result_swap(&allReleventInfectedCities, &allReleventInfectedCitiesResult,
+            &largeInfectedCitiesByRank_head, &largeInfectedCitiesResultByRank_head);
 
     }
     

@@ -43,8 +43,15 @@ const double maxSpreadDistances[5][5] =
 //has the base spreadLogBase
 const double spreadLogBase = 10;
 
-double deg2rad(double);
-double rad2deg(double);
+
+
+__device__ double deg2rad(double deg) {
+  return (deg * pi / 180);
+}
+
+__device__ double rad2deg(double rad) {
+  return (rad * 180 / pi);
+}
 
 //returns distance between two points (lat and long) in miles
 __device__ double coor2distance(double lat1, double lon1, double lat2, double lon2) {
@@ -60,14 +67,6 @@ __device__ double coor2distance(double lat1, double lon1, double lat2, double lo
     dist = dist * 60 * 1.1515;
     return (dist);
   }
-}
-
-__device__ double deg2rad(double deg) {
-  return (deg * pi / 180);
-}
-
-__device__ double rad2deg(double rad) {
-  return (rad * 180 / pi);
 }
 
 extern "C" void covid_allocateMem_CityData(
@@ -253,7 +252,7 @@ __global__ void covid_spread_kernel(
     short infectorIsSmallCity = 0;
     char infectorState[3] = {'\0'};
 
-    double probablility, distance;
+    double probability, distance;
 
     //random probability generator
     double rd;
@@ -289,7 +288,7 @@ __global__ void covid_spread_kernel(
             strcmp(infectorState, cityData[j].state) != 0) continue;
 
             
-            distance = getDistance(cityData[index], cityData[j]);
+            distance = getDistance(&cityData[index], &cityData[j]);
 
             if(distance < 1) distance = 1;
             if(distance > maxSpreadDistances[cityData[index].cityRanking][cityData[j].cityRanking]) continue;
@@ -300,7 +299,7 @@ __global__ void covid_spread_kernel(
 
             //the city at [cityIndex] gets infected
             rd = curand_uniform(&curand_state);
-            if(rd < probablility){
+            if(rd < probability){
                 allReleventInfectedCitiesResult[index].susceptibleCount = allReleventInfectedCities[index].susceptibleCount - 1;
                 allReleventInfectedCitiesResult[index].infectedCount = 1;
             }
