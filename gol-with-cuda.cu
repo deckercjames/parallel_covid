@@ -80,6 +80,7 @@ extern "C" void covid_allocateMem_InfectedCities_init(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult,
+                        int cityDataLength,
                         int numRelevantCities){
     int i;
 
@@ -89,7 +90,7 @@ extern "C" void covid_allocateMem_InfectedCities_init(
     cudaMallocManaged( infectedCitiesResult, infectedCityDataLength );
 
     //init infected cities
-    for(i = 0; i < numRelevantCities; i++){
+    for(i = 0; i < cityDataLength; i++){
         //initilize all fields for infected cities
         (*infectedCities)[i].susceptibleCount = (*cityData)[i].totalPopulation;
         (*infectedCities)[i].infectedCount  = 0;
