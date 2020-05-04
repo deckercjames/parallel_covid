@@ -24,14 +24,14 @@ typedef unsigned long long ticks;
 //                     3
 //                     4
 //                     5
-const double probabilityMultipliers[5][5] = 
+__device__ const double probabilityMultipliers[5][5] = 
 {{1, 0.9, 0.8, 0.7, 0.6},
 {0.8, 0.7, 0.6, 0.5, 0.4},
 {0.7, 0.6, 0.5, 0.4, 0.3},
 {0.6, 0.5, 0.4, 0.3, 0.2},
 {0.5, 0.4, 0.3, 0.2, 0.1}};
 
-const double maxSpreadDistances[5][5] = 
+__device__ const double maxSpreadDistances[5][5] = 
 {{4000, 1000, 200, 100, 50},
 {1000, 200, 100, 50, 25},
 {200, 100, 50, 25, 25},
@@ -43,6 +43,7 @@ const double maxSpreadDistances[5][5] =
 //has the base spreadLogBase
 const double spreadLogBase = 10;
 
+<<<<<<< HEAD
 
 
 __device__ double deg2rad(double deg) {
@@ -51,6 +52,26 @@ __device__ double deg2rad(double deg) {
 
 __device__ double rad2deg(double rad) {
   return (rad * 180 / pi);
+}
+
+__device__ char * my_strcpy(char *dest, const char *src){
+    int i = 0;
+    do {
+      dest[i] = src[i];
+    }
+    while (src[i++] != '\0');
+    return dest;
+}
+
+//only returns 1 (not the same) or 0 (the same)
+__device__ int my_strcmp(char *str1, const char *str2){
+    int i = 0;
+    do {
+        if(str1[i] != str2[i]) return 1;
+    }
+    while (str1[i++] != '\0');
+    if(str1[i] != str2[i])return 1;
+    return 0;
 }
 
 //returns distance between two points (lat and long) in miles
@@ -118,7 +139,6 @@ extern "C" void covid_allocateMem_InfectedCities_init(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult,
-                        int cityDataLength,
                         int numRelevantCities){
     int i;
 
@@ -128,7 +148,7 @@ extern "C" void covid_allocateMem_InfectedCities_init(
     cudaMallocManaged( infectedCitiesResult, infectedCityDataLength );
 
     //init infected cities
-    for(i = 0; i < cityDataLength; i++){
+    for(i = 0; i < numRelevantCities; i++){
         //initilize all fields for infected cities
         (*infectedCities)[i].susceptibleCount = (*cityData)[i].totalPopulation;
         (*infectedCities)[i].infectedCount  = 0;
@@ -245,7 +265,6 @@ __global__ void covid_spread_kernel(
     */
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int cityIndex;
     int j;
     int totalCitiesCount = mySmallCityCount + myLargeCityCount + allLargeCityCount;
     int startIndex, endIndex;
@@ -277,7 +296,7 @@ __global__ void covid_spread_kernel(
             endIndex = totalCitiesCount;
             infectorIsSmallCity = 0;
         }
-        strcpy(infectorState, cityData[index].state);
+        my_strcpy(infectorState, cityData[index].state);
 
         //the cities to be infected
         for(j = startIndex; j< endIndex; j++){
@@ -285,7 +304,7 @@ __global__ void covid_spread_kernel(
             if(j == index) continue;
             //if either city is small, infection can only happen within state
             if((infectorIsSmallCity || cityData[j].cityRanking > 2) &&
-            strcmp(infectorState, cityData[j].state) != 0) continue;
+            my_strcmp(infectorState, cityData[j].state) != 0) continue;
 
             
             distance = getDistance(&cityData[index], &cityData[j]);
