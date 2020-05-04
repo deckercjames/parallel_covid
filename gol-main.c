@@ -10,7 +10,7 @@
 
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 1;
+const int iterations = 15;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(

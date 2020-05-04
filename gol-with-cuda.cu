@@ -90,11 +90,14 @@ extern "C" void covid_allocateMem_InfectedCities_init(
 
     //init infected cities
     for(i = 0; i < numRelevantCities; i++){
+        //initilize all fields for infected cities
         (*infectedCities)[i].susceptibleCount = (*cityData)[i].totalPopulation;
         (*infectedCities)[i].infectedCount  = 0;
         (*infectedCities)[i].recoveredCount = 0;
         (*infectedCities)[i].deceasedCount  = 0;
         (*infectedCities)[i].iterationOfInfection  = -1;
+        //the only result field that needs to be initilized  is iteratonOfInfection because it is not recalculated each iteration
+        (*infectedCitiesResult)[i].iterationOfInfection  = -1;
     }
 
 }
@@ -148,6 +151,7 @@ __global__ void covid_intracity_kernel(
         newInfections = (int) (spreadRate * (*city).susceptibleCount * (*city).infectedCount / cityData[index].totalPopulation);
         //if there are both infected and suseptable people, garenty someone will get infected
         if((*city).infectedCount > 0 && (*city).susceptibleCount > 0 && newInfections == 0) newInfections = 1;
+        if(newInfections > city->susceptibleCount) newInfections = city->susceptibleCount;
 
         //new deaths
         newDeaths = (int) (mortalityRate * (*city).infectedCount);
@@ -155,6 +159,7 @@ __global__ void covid_intracity_kernel(
         //new recoveries
         newRecoveries = (int) (recoveryRate * (*city).infectedCount);
         if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
+        if(newRecoveries > city->infectedCount) newRecoveries = city->infectedCount;
 
         //Calculated city results
         (*cityResult).susceptibleCount = (*city).susceptibleCount - newInfections;
@@ -265,8 +270,6 @@ extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
     //run one itterations
     covid_spread_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult,
         mySmallCityCount, myLargeCityCount, allLargeCityCount);
-
-    pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
     cudaDeviceSynchronize();
 
