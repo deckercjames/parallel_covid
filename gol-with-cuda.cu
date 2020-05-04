@@ -126,13 +126,15 @@ extern "C" void covid_allocateMem_InfectedCities_init(
 
     //init infected cities
     for(i = 0; i < numRelevantCities; i++){
+        //initilize all fields for infected cities
         (*infectedCities)[i].susceptibleCount = (*cityData)[i].totalPopulation;
         (*infectedCities)[i].infectedCount  = 0;
         (*infectedCities)[i].recoveredCount = 0;
         (*infectedCities)[i].deceasedCount  = 0;
         (*infectedCities)[i].iterationOfInfection  = -1;
+        //the only result field that needs to be initilized  is iteratonOfInfection because it is not recalculated each iteration	
+        (*infectedCitiesResult)[i].iterationOfInfection  = -1;
     }
-
 }
 
 extern "C" void covid_freeMem(
@@ -195,14 +197,14 @@ __global__ void covid_intracity_kernel(
         newInfections = (int) (spreadRate * (*city).susceptibleCount * (*city).infectedCount / cityData[index].totalPopulation);
         //if there are both infected and suseptable people, garenty someone will get infected
         if((*city).infectedCount > 0 && (*city).susceptibleCount > 0 && newInfections == 0) newInfections = 1;
-
+        if(newInfections > city->susceptibleCount) newInfections = city->susceptibleCount;
         //new deaths
         newDeaths = (int) (mortalityRate * (*city).infectedCount);
 
         //new recoveries
         newRecoveries = (int) (recoveryRate * (*city).infectedCount);
         if(newRecoveries == 0 && newDeaths == 0 && (*city).susceptibleCount == 0 && (*city).infectedCount != 0) newRecoveries = 1;
-
+        if(newRecoveries > city->infectedCount) newRecoveries = city->infectedCount;
         if(cityData[index].totalPopulation == 6045 && cityData[index].density == 2318){
             // printf("index %d\n", index);
             printf("Elsmere newInfections %d\n", newInfections);
@@ -242,6 +244,10 @@ __global__ void covid_spread_kernel(
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int cityIndex;
     int j;
+    int totalCitiesCount = mySmallCityCount + myLargeCityCount + allLargeCityCount;
+    int startIndex, endIndex;
+    short infectorIsSmallCity = 0;
+    char infectorState[3] = {'\0'};
 
     double probablility, distance;
 
@@ -250,36 +256,49 @@ __global__ void covid_spread_kernel(
     curandState curand_state;
     curand_init(clock64(), index, 0, &curand_state);//(seed, sequence, offset, state)
 
+    //the cities that are doing the infecting
+    while(index < totalCitiesCount){
+        if(index < mySmallCityCount){//index points to small city
+            //only consider infecting in rank cities
+            startIndex = 0;
+            endIndex = mySmallCityCount + myLargeCityCount;
+            infectorIsSmallCity = 1;
+        }else if(index < mySmallCityCount + myLargeCityCount){//"" my rank large city
+            //consider infecting all cities
+            startIndex = 0;
+            endIndex = totalCitiesCount;
+            infectorIsSmallCity = 0;
+        }else{//"" outside large city
+            //consider infecting all large cities
+            startIndex = mySmallCityCount;
+            endIndex = totalCitiesCount;
+            infectorIsSmallCity = 0;
+        }
+        strcpy(infectorState, cityData[index].state);
 
-    while(index < myLargeCityCount){
+        //the cities to be infected
+        for(j = startIndex; j< endIndex; j++){
+            //infector city can't infect itself
+            if(j == index) continue;
+            //if either city is small, infection can only happen within state
+            if((infectorIsSmallCity || cityData[j].cityRanking > 2) &&
+            strcmp(infectorState, cityData[j].state) != 0) continue;
 
-        //the index of this city is the offset of the small cities at the begening of the array
-        cityIndex = index + mySmallCityCount;
+            
+            distance = getDistance(cityData[index], cityData[j]);
 
-        //only try to infect city[cityIndex] if it doesn't have any infections yet
-        if(allReleventInfectedCities[cityIndex].infectedCount == 0){
+            if(distance < 1) distance = 1;
+            if(distance > maxSpreadDistances[cityData[index].cityRanking][cityData[j].cityRanking]) continue;
 
-            //all cities can infect city[cityIndex]
-            for(j = mySmallCityCount; j<mySmallCityCount+allLargeCityCount; j++){
-                if(j == cityIndex) continue;
-                //probability that city[j] will infect city[cityIndex]
-                probablility = 0;
+            //probability that city[j] will infect city[cityIndex]
+            probability = probabilityMultipliers[cityData[index].cityRanking][cityData[j].cityRanking]/
+            (log10(distance)/log10(spreadLogBase));
 
-                //TODO write probability function
-                distance = getDistance(cityData[cityIndex], cityData[j]);
-
-                if(distance < 1) distance = 1;
-                if(distance > maxSpreadDistances[cityData[cityIndex].cityRanking][cityData[j].cityRanking]) continue;
-
-                probability = probabilityMultipliers[cityData[cityIndex].cityRanking][cityData[j].cityRanking]/
-                (log10(distance)/log10(spreadLogBase));
-
-                //the city at [cityIndex] gets infected
-                rd = curand_uniform(&curand_state);
-                if(rd < probablility){
-                    allReleventInfectedCitiesResult[cityIndex].susceptibleCount = allReleventInfectedCities[cityIndex].susceptibleCount - 1;
-                    allReleventInfectedCitiesResult[cityIndex].infectedCount = 1;
-                }
+            //the city at [cityIndex] gets infected
+            rd = curand_uniform(&curand_state);
+            if(rd < probablility){
+                allReleventInfectedCitiesResult[index].susceptibleCount = allReleventInfectedCities[index].susceptibleCount - 1;
+                allReleventInfectedCitiesResult[index].infectedCount = 1;
             }
         }
 
@@ -303,9 +322,7 @@ extern "C" bool covid_intracity_kernelLaunch(struct City** cityData,
 
     //run one itterations
     covid_intracity_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
-
-    pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
-
+    
     cudaDeviceSynchronize();
 
     return true;
@@ -322,13 +339,11 @@ extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
 
 
     //calculate the number of blocks based on the threads per block
-    int blockCount = myLargeCityCount / threadsCount;
+    int blockCount = (mySmallCityCount + myLargeCityCount + allLargeCityCount) / threadsCount;
 
     //run one itterations
     covid_spread_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult,
         mySmallCityCount, myLargeCityCount, allLargeCityCount);
-
-    pointer_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
     cudaDeviceSynchronize();
 
