@@ -10,7 +10,7 @@
 
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 15;
+const int iterations = 10;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(
@@ -27,6 +27,7 @@ extern void covid_allocateMem_InfectedCities_init(
                         struct City** cityData,
                         struct InfectedCity** infectedCities,
                         struct InfectedCity** infectedCitiesResult,
+                        int cityDataLength,
                         int numRelevantCities);
 
 extern bool covid_intracity_kernelLaunch(struct City** cityData,
@@ -209,12 +210,13 @@ void printLargeCitySample( struct City** largeCitiesByRank_head,
 
     int i;
 
-    if(myRank != 0) return;
+    // if(myRank != 0) return;
 
-    printf("%15s %10s %10s %10s %10s %10s %10s\n", "name", "population", "suseptable", "infected", "recovered", "deseased", "itr");
+    printf("rank: %d %15s %10s %10s %10s %10s %10s %10s\n", myRank, "name", "population", "suseptable", "infected", "recovered", "deseased", "itr");
 
     for(i = 0; i<numRanks; i++){
-        printf("%14s: %10d %10d %10d %10d %10d %10d\n",
+        printf("rank: %d %14s: %10d %10d %10d %10d %10d %10d\n",
+            myRank,
             largeCitiesByRank_head[i]->cityName,
             largeCitiesByRank_head[i]->totalPopulation,
             largeInfectedCitiesByRank_head[i]->susceptibleCount,
@@ -261,6 +263,7 @@ int main(int argc, char *argv[])
     int numRanks;
 
 
+    double runtime = 0;
 
     // Setup MPI
     MPI_Init(&argc, &argv);
@@ -315,7 +318,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     //init memory for infected cities
-    covid_allocateMem_InfectedCities_init(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult, numRelevantCities);
+    covid_allocateMem_InfectedCities_init(&cityData, &allReleventInfectedCities, &allReleventInfectedCitiesResult, cityDataLength, numRelevantCities);
 
 
     //set up cityData now the number of large cities in each rank is known
@@ -326,6 +329,9 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+    //debug
+    printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
+
     MPI_passLargeCities(largeCitiesByRank_head, mpi_cityData_type, largeCitiesByRank_length, myRank, numRanks);
 
     printf("large cities passed\n");
@@ -335,10 +341,20 @@ int main(int argc, char *argv[])
 
 
     //PATIENT ZERO
-    if(myRank == 0){
-        largeInfectedCitiesByRank_head[myRank]->susceptibleCount -= 1;
-        largeInfectedCitiesByRank_head[myRank]->infectedCount += 1;
+    printf("rank: %d patient zero\n", myRank);
+    // if(myRank == 0){
+    //     printf("rank: %d infecting\n", myRank);
+    //     largeInfectedCitiesByRank_head[myRank]->susceptibleCount -= 1;
+    //     largeInfectedCitiesByRank_head[myRank]->infectedCount += 1;
+    // }
+    for(i = 0; i<cityDataLength; i++){
+        if(strcmp(cityData[i].cityName, "Brooklyn") == 0 && strcmp(cityData[i].state, "NY") == 0){
+            printf("rank %d infecting city %s\n", myRank, cityData[i].cityName);
+            allReleventInfectedCities[i].susceptibleCount -= 1;
+            allReleventInfectedCities[i].infectedCount += 1;
+        }
     }
+    printf("rank: %d patient zero infected\n", myRank);
 
     //debug
     printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
@@ -366,7 +382,7 @@ int main(int argc, char *argv[])
         printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
 
         //pass infectedCount of all cities to all other ranks
-        // MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
+        MPI_passInfectionData(largeInfectedCitiesByRank_head, largeCitiesByRank_length, myRank, numRanks, mpi_infectedCity_type, i);
 
         //spread of desease
         // covid_spread_kernelLaunch(&cityData,
@@ -382,6 +398,14 @@ int main(int argc, char *argv[])
 
 
     //write results
+
+
+
+    //timing data
+    if(myRank == 0){
+        runtime = MPI_Wtime();
+        printf("MPI running time: %f\n", runtime);
+    }
 
 
     //finalize
@@ -587,16 +611,18 @@ void MPI_passInfectionData(struct InfectedCity** largeInfectedCitiesByRank_head,
     //setup to recieve data
     for(i = 0; i<numRanks; i++){
         if(i==myRank) continue;
+        printf("rank %d recieving %d from rank %d\n", myRank, largeCitiesByRank_length[i], i);
         // Exchange row data with MPI Ranks using MPI_Isend/Irecv.
-        //                 data                               length             data type  source   tag        MPI_COMM    MPI_Request
-        MPI_Irecv(largeInfectedCitiesByRank_head[i], largeCitiesByRank_length[i], MPI_INT,     i,    tag + i,  MPI_COMM_WORLD, &request0);
+        //                 data                               length                  data type           source   tag        MPI_COMM    MPI_Request
+        MPI_Irecv(largeInfectedCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_infectedCity_type,     i,    iteration,  MPI_COMM_WORLD, &request0);
     }
 
     //send data
     for(i = 0; i<numRanks; i++){
         if(i==myRank) continue;
+        printf("rank %d sending %d to rank %d\n", myRank, largeCitiesByRank_length[myRank], i);
         //                 data                              length                   data type          dest     tag       MPI_COMM     MPI_Request
-        MPI_Isend(largeInfectedCitiesByRank_head[i], largeCitiesByRank_length[i], mpi_infectedCity_type,   i,   tag + i,  MPI_COMM_WORLD, &request1);
+        MPI_Isend(largeInfectedCitiesByRank_head[myRank], largeCitiesByRank_length[myRank], mpi_infectedCity_type,   i,   iteration,  MPI_COMM_WORLD, &request1);
     }
 
     MPI_Wait(&request0, &status);
