@@ -3,6 +3,7 @@
 #include<unistd.h>
 #include<stdbool.h>
 #include<string.h>
+#include <math.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -11,6 +12,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+#define pi 3.14159265358979323846
 
 //array used to determine edge weights (along with distance)
 //      target city rank: 1  2  3  4  5
@@ -19,17 +21,51 @@
 //                     3
 //                     4
 //                     5
-const double edgeWeightMultipliers[5][5] = 
+const double probabilityMultipliers[5][5] = 
 {{1, 0.9, 0.8, 0.7, 0.6},
 {0.8, 0.7, 0.6, 0.5, 0.4},
 {0.7, 0.6, 0.5, 0.4, 0.3},
 {0.6, 0.5, 0.4, 0.3, 0.2},
 {0.5, 0.4, 0.3, 0.2, 0.1}};
 
-//edges with weights below this won't be recorded
-const double minWeight = 0.01;
+const double maxSpreadDistances[5][5] = 
+{{4000, 1000, 200, 100, 50},
+{1000, 200, 100, 50, 25},
+{200, 100, 50, 25, 25},
+{100, 50, 25, 25, 25},
+{50, 25, 25, 25, 25}};
 
+//probability of infection will be m/log(dist)
+//where m is the probability multiplier and log
+//has the base spreadLogBase
+const double spreadLogBase = 10;
 
+double deg2rad(double);
+double rad2deg(double);
+
+//returns distance between two points (lat and long) in miles
+__device__ double coor2distance(double lat1, double lon1, double lat2, double lon2) {
+  double theta, dist;
+  if ((lat1 == lat2) && (lon1 == lon2)) {
+    return 0;
+  }
+  else {
+    theta = lon1 - lon2;
+    dist = sin(deg2rad(lat1)) * sin(deg2rad(lat2)) + cos(deg2rad(lat1)) * cos(deg2rad(lat2)) * cos(deg2rad(theta));
+    dist = acos(dist);
+    dist = rad2deg(dist);
+    dist = dist * 60 * 1.1515;
+    return (dist);
+  }
+}
+
+__device__ double deg2rad(double deg) {
+  return (deg * pi / 180);
+}
+
+__device__ double rad2deg(double rad) {
+  return (rad * 180 / pi);
+}
 
 extern "C" void covid_allocateMem_CityData(
                         struct City** cityData,
@@ -106,6 +142,11 @@ extern "C" void covid_freeMem(
     cudaFree(cityData);
     cudaFree(infectedCities);
     cudaFree(infectedCitiesResult);
+}
+
+
+__device__ double getDistance(struct City* city1, struct City* city2){
+    return coor2distance(city1->lattitude, city1->longitude, city2->lattitude, city2->longitude);
 }
 
 static inline void pointer_swap( struct InfectedCity **pA, struct InfectedCity **pB)
@@ -202,7 +243,7 @@ __global__ void covid_spread_kernel(
     int cityIndex;
     int j;
 
-    double probablility;
+    double probablility, distance;
 
     //random probability generator
     double rd;
@@ -220,11 +261,17 @@ __global__ void covid_spread_kernel(
 
             //all cities can infect city[cityIndex]
             for(j = mySmallCityCount; j<mySmallCityCount+allLargeCityCount; j++){
-
+                if(j == cityIndex) continue;
                 //probability that city[j] will infect city[cityIndex]
                 probablility = 0;
 
                 //TODO write probability function
+                distance = getDistance(cityData[cityIndex], cityData[j]);
+
+                if(distance < 1) distance = 1;
+                if(distance > maxSpreadDistances[cityData[cityIndex].cityRanking][cityData[j].cityRanking]) continue;
+
+                probability = probabilityMultipliers[cityData[cityIndex].cityRanking][cityData[j].cityRanking]/log10(distance);
 
                 //the city at [cityIndex] gets infected
                 rd = curand_uniform(&curand_state);

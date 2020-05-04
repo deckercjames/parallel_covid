@@ -262,58 +262,6 @@ int main(int argc, char *argv[])
     //set the number of large cities within this rank
     numLargeCitiesWithinRank = cityDataLength - numSmallCities;
 
-    printf("cityDataLen: %d numSmallCities: %d rank: %d\n", cityDataLength, numSmallCities, myRank);
-    
-    if(myRank == 0){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    if(myRank == 1){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);    
-    if(myRank == 2){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);    
-    if(myRank == 3){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);    
-    if(myRank == 4){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    if(myRank == 5){
-        for(i = 0; i < cityDataLength; i += 100){
-            printf("rank %2d city %5d population %8d density %5d lat %10lf long %11lf name %15.15s state %2s cityRanking %1d\n", 
-            myRank, i, cityData[i].totalPopulation, cityData[i].density, cityData[i].lattitude,
-            cityData[i].longitude, cityData[i].cityName, cityData[i].state, cityData[i].cityRanking);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-
-
     //PASS LARGE CITY DATA TO ALL OTHER RANKS
 
     largeCitiesByRank_length       = (int*)                  malloc(numRanks * sizeof(int));

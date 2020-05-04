@@ -1,41 +1,79 @@
 #include "fileIO.h"
 #include <string.h>
 #include <math.h>
+#include "covidTypes.h"
 
-void readFile(const char* fileName, int numChars, int rank, int numRanks, 
+double readFile(int numFiles, char*** fileName, int numChars, int** numCharsByFile, int rank, int numRanks, 
 struct City** cityData, int* cityDataLength, int* numSmallCities){
-    MPI_File f;
+    MPI_File* f;
     MPI_Status status;
     char* buf;
     char* endptr;
     int startPos = numChars * ((float) rank / numRanks);
     int endPos = numChars * (((float) rank + 1)/ numRanks);
     int bufSize = 2*numChars/numRanks;
-    int i, tokenNum, smallCityIndex = -1, largeCityIndex = -1;
+    int tmpBufSize;
+    int i, tokenNum, smallCityIndex = -1, largeCityIndex = -1, curChar = 0, charCounter = 0;
     char token[3000] = {'\0'};
     char tmpChar = '\0';
     static const struct City blankCity;
     struct City tmpCity;
-    struct City largeCities[2000];
-    char firstState[3] = {'\0'};
-    char curState[3] = {'\0'};
-    char finalState[3] = {'\0'};
+    struct City largeCities[4000];
+    char firstState[5] = {'\0'};
+    char curState[5] = {'\0'};
+    char finalState[5] = {'\0'};
     short firstStateRecorded = 0, onFinalState = 0, finalStateRecorded = 0;
+    double t1, t2;
     if(rank == numRanks - 1){
         //ceiling of numChars/numRanks
         bufSize = numChars/numRanks + (numChars % numRanks != 0);
     }
+    int readEndPos = startPos + bufSize;
 
     //we will be reading twice the expected size at each rank
     //because most ranks will have to go over expected size
     buf = (char*) calloc(bufSize, sizeof(char));
-    *cityData = (struct City*) calloc(bufSize/180, sizeof(struct City));//approx 180 chars per line
-    printf("before file open bufSize: %d startPos: %d\n", bufSize, startPos);
-    MPI_File_open(MPI_COMM_WORLD, fileName, MPI_MODE_RDONLY, MPI_INFO_NULL, &f);
-    printf("before read at\n");
-    MPI_File_read_at(f, startPos, buf, bufSize, MPI_CHAR, &status);
-    printf("before main loop\n");
+    *cityData = (struct City*) calloc(bufSize/120, sizeof(struct City));//approx 180 chars per line
+    for(i = 0; i < numFiles; i++){
+        f = (MPI_File*) calloc(numFiles, sizeof(MPI_File));
+    }
 
+    //start time
+    t1 = MPI_Wtime();
+
+    //open all the files
+    for(i = 0; i < numFiles; i++){
+        MPI_File_open(MPI_COMM_WORLD, (*fileName)[i], MPI_MODE_RDONLY, MPI_INFO_NULL, &f[i]);
+    }
+
+    //read into buf
+    //curChar refers to local rank, charCounter refers to the num of chars in
+    //all the files that have been passed
+    
+    printf("rank %d before reading in\n", rank);
+    for(i = 0; i < numFiles; i++){
+        
+        if(startPos < charCounter + (*numCharsByFile)[i] && readEndPos > charCounter){//read a file
+            if(charCounter + (*numCharsByFile)[i] < readEndPos){
+                tmpBufSize = (*numCharsByFile)[i] - (startPos + curChar - charCounter);
+            }else{
+                tmpBufSize = readEndPos - startPos - curChar;
+            }
+            printf("before file open tmpBufSize: %d startPos: %d i: %d rank: %d curChar: %d charCounter: %d\n", 
+            tmpBufSize, startPos, i, rank, curChar, charCounter);
+            //printf("before read at\n");
+            MPI_File_read_at(f[i], startPos + curChar - charCounter, &buf[curChar], tmpBufSize, MPI_CHAR, &status);
+            curChar += tmpBufSize;
+        }
+        charCounter += (*numCharsByFile)[i];
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    for(i = 0; i < numFiles; i++){
+        MPI_File_close(&f[i]);
+    }
+    t2 = MPI_Wtime();
+
+    printf("rank %d before main loop\n", rank);
     for(i = 0; i < bufSize; i++){
         if(buf[i] == '\n'){
             if(smallCityIndex == -1){
@@ -64,8 +102,8 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                         firstStateRecorded = 1;
                     }
                     if(rank == 0){// && strcmp(curState, token) != 0
-                        printf("rank: %d, state: %s, smallI: %d, largeI: %d, i: %d\n", 
-                        rank, token, smallCityIndex, largeCityIndex, i);
+                        //printf("rank: %d, state: %s, smallI: %d, largeI: %d, i: %d\n", 
+                        //rank, token, smallCityIndex, largeCityIndex, i);
                     }
                     strcpy(curState, token);
                     if(onFinalState && !finalStateRecorded){
@@ -74,7 +112,7 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                     }
                     if(onFinalState && strcmp(curState, finalState) != 0){
                         i = bufSize;
-                        printf("final state: %s cur state: %s\n", finalState, curState);
+                        //printf("final state: %s cur state: %s\n", finalState, curState);
                     }
                     strcpy(tmpCity.state, token);
                     break;
@@ -112,12 +150,14 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
             strcat(token, &tmpChar);
         }
     }
-    printf("before second loop\n");
+    printf("rank %d before second loop\n", rank);
     for(i = smallCityIndex; i < smallCityIndex + largeCityIndex; i++){
         (*cityData)[i] = largeCities[i - smallCityIndex];
     }
-    printf("after second loop\n");
+    printf("rank %d after second loop\n", rank);
     *cityDataLength = smallCityIndex + largeCityIndex;
     *numSmallCities = smallCityIndex;
     free(buf);
+    free(f);
+    return t2 - t1;
 }
