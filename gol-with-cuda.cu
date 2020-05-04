@@ -12,6 +12,9 @@
 #include <curand_kernel.h>
 
 
+typedef unsigned long long ticks;
+
+
 //array used to determine edge weights (along with distance)
 //      target city rank: 1  2  3  4  5
 //spreading city rank: 1
@@ -276,6 +279,25 @@ extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
 
     return true;
 }
+
+
+
+
+static __inline__ ticks getticks(void)
+    {
+    unsigned int tbl, tbu0, tbu1;
+    do {
+        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu0));
+        __asm__ __volatile__ ("mftb %0" : "=r"(tbl));
+        __asm__ __volatile__ ("mftbu %0" : "=r"(tbu1));
+    } while (tbu0 != tbu1);
+    return ((((unsigned long long)tbu0) << 32) | tbl);
+}
+
+
+
+
+
 
 __global__ void smallCityConnectionsKernel(struct City** cityData, int dataLength){
     int index = blockIdx.x * blockDim.x + threadIdx.x;
