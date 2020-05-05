@@ -3,7 +3,6 @@
 #include<unistd.h>
 #include<stdbool.h>
 #include<string.h>
-#include <math.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -38,10 +37,11 @@ __device__ const double maxSpreadDistances[5][5] =
 {100, 50, 25, 25, 25},
 {50, 25, 25, 25, 25}};
 
-//probability of infection will be m/log(dist)
-//where m is the probability multiplier and log
-//has the base spreadLogBase
-const double spreadLogBase = 10;
+__device__ const int spreadDenom = 14;
+//this should be in the order of magnitude log(max infected pop) * log(max susceptible pop)
+
+//probability of infection will be (m* log(infected population)*log(susceptible pop))/(log(dist)*spreadDenom)
+//where m is the probability multiplier and log is base 10
 
 __device__ double deg2rad(double);
 __device__ double rad2deg(double);
@@ -256,7 +256,7 @@ __global__ void covid_spread_kernel(
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int j;
     int totalCitiesCount = mySmallCityCount + myLargeCityCount + allLargeCityCount;
-    int startIndex, endIndex;
+    int startIndex, endIndex, infectedCount;
     short infectorIsSmallCity = 0;
     char infectorState[3] = {'\0'};
 
@@ -286,30 +286,33 @@ __global__ void covid_spread_kernel(
             infectorIsSmallCity = 0;
         }
         my_strcpy(infectorState, cityData[index].state);
+        infectedCount = allReleventInfectedCities[index].infectedCount;
+        if(infectedCount > 0){
+            //the cities to be infected
+            for(j = startIndex; j< endIndex; j++){
+                //infector city can't infect itself
+                if(j == index) continue;
+                //if either city is small, infection can only happen within state
+                if((infectorIsSmallCity || cityData[j].cityRanking > 2) &&
+                my_strcmp(infectorState, cityData[j].state) != 0) continue;
 
-        //the cities to be infected
-        for(j = startIndex; j< endIndex; j++){
-            //infector city can't infect itself
-            if(j == index) continue;
-            //if either city is small, infection can only happen within state
-            if((infectorIsSmallCity || cityData[j].cityRanking > 2) &&
-            my_strcmp(infectorState, cityData[j].state) != 0) continue;
+                
+                distance = getDistance(&cityData[index], &cityData[j]);
 
-            
-            distance = getDistance(&cityData[index], &cityData[j]);
+                if(distance < 1) distance = 1;
+                if(distance > maxSpreadDistances[cityData[index].cityRanking][cityData[j].cityRanking]) continue;
 
-            if(distance < 1) distance = 1;
-            if(distance > maxSpreadDistances[cityData[index].cityRanking][cityData[j].cityRanking]) continue;
+                //probability that city[j] will infect city[cityIndex]
+                //(m* log(infected population)*log(susceptible pop))/(log(dist)*spreadDenom)
+                probability = (probabilityMultipliers[cityData[index].cityRanking][cityData[j].cityRanking]*
+                log10f(infectedCount)*log10f(allReleventInfectedCities[j].susceptibleCount))/(log10f(distance) * spreadDenom);
 
-            //probability that city[j] will infect city[cityIndex]
-            probability = probabilityMultipliers[cityData[index].cityRanking][cityData[j].cityRanking]/
-            (log10(distance)/log10(spreadLogBase));
-
-            //the city at [cityIndex] gets infected
-            rd = curand_uniform(&curand_state);
-            if(rd < probability){
-                allReleventInfectedCitiesResult[index].susceptibleCount = allReleventInfectedCities[index].susceptibleCount - 1;
-                allReleventInfectedCitiesResult[index].infectedCount = 1;
+                //the city at [cityIndex] gets infected
+                rd = curand_uniform(&curand_state);
+                if(rd < probability){
+                    allReleventInfectedCitiesResult[index].susceptibleCount = allReleventInfectedCities[index].susceptibleCount - 1;
+                    allReleventInfectedCitiesResult[index].infectedCount = 1;
+                }
             }
         }
 

@@ -571,11 +571,8 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
     // *cityData = (struct City*) calloc(bufSize/180, sizeof(struct City));//approx 180 chars per line
     covid_allocateMem_CityData(cityData, bufSize/180);
 
-    printf("before file open bufSize: %d startPos: %d\n", bufSize, startPos);
     MPI_File_open(MPI_COMM_WORLD, fileName, MPI_MODE_RDONLY, MPI_INFO_NULL, &f);
-    printf("before read at\n");
     MPI_File_read_at(f, startPos, buf, bufSize, MPI_CHAR, &status);
-    printf("before main loop\n");
 
     for(i = 0; i < bufSize; i++){
         if(buf[i] == '\n'){
@@ -604,10 +601,6 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                         strcpy(firstState, token);
                         firstStateRecorded = 1;
                     }
-                    if(rank == 0){// && strcmp(curState, token) != 0
-                        printf("rank: %d, state: %s, smallI: %d, largeI: %d, i: %d\n", 
-                        rank, token, smallCityIndex, largeCityIndex, i);
-                    }
                     strcpy(curState, token);
                     if(onFinalState && !finalStateRecorded){
                         strcpy(finalState, curState);
@@ -615,7 +608,6 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                     }
                     if(onFinalState && strcmp(curState, finalState) != 0){
                         i = bufSize;
-                        printf("final state: %s cur state: %s\n", finalState, curState);
                     }
                     strcpy(tmpCity.state, token);
                     break;
@@ -653,11 +645,9 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
             strcat(token, &tmpChar);
         }
     }
-    printf("before second loop\n");
     for(i = smallCityIndex; i < smallCityIndex + largeCityIndex; i++){
         (*cityData)[i] = largeCities[i - smallCityIndex];
     }
-    printf("after second loop\n");
     *cityDataLength = smallCityIndex + largeCityIndex;
     *numSmallCities = smallCityIndex;
     free(buf);
@@ -728,7 +718,7 @@ void MPI_passOutputDataLen(int** outputDataLens, int myRank, int numRanks){
 //takes in list of fileNames, cityData, infectedCityData
 //and outputs cityName, state abbrev, city ranking, total population, susceptibleCount, infectedCount
 //recoveredCount, deceasedCount in csv format
-double outputData(int numFiles, char*** fileNames, int rank, int numRanks, struct City** cityData, 
+/*double outputData(int numFiles, char*** fileNames, int rank, int numRanks, struct City** cityData, 
 struct InfectedCity** infectedCityData, int numCurRankCities){
 
     int i, myFile;
@@ -781,4 +771,4 @@ struct InfectedCity** infectedCityData, int numCurRankCities){
     t2 = MPI_Wtime();
 
     return t2 - t1;
-}
+}*/
