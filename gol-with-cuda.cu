@@ -3,7 +3,6 @@
 #include<unistd.h>
 #include<stdbool.h>
 #include<string.h>
-#include <math.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -38,10 +37,11 @@ __device__ const double maxSpreadDistances[5][5] =
 {100, 50, 25, 25, 25},
 {50, 25, 25, 25, 25}};
 
-//probability of infection will be m/log(dist)
-//where m is the probability multiplier and log
-//has the base spreadLogBase
-const double spreadLogBase = 10;
+__device__ const int spreadDenom = 14;
+//this should be in the order of magnitude log(max infected pop) * log(max susceptible pop)
+
+//probability of infection will be (m* log(infected population)*log(susceptible pop))/(log(dist)*spreadDenom)
+//where m is the probability multiplier and log is base 10
 
 __device__ double deg2rad(double);
 __device__ double rad2deg(double);
@@ -219,8 +219,8 @@ __global__ void covid_intracity_kernel(
         if(newRecoveries > city->infectedCount) newRecoveries = city->infectedCount;
         if(cityData[index].totalPopulation == 2629150){
             // printf("index %d\n", index);
-            printf("Brooklyn newInfections %d\n", newInfections);
-            printf("Brooklyn newRecoveries %d\n", newRecoveries);
+            // printf("Brooklyn newInfections %d\n", newInfections);
+            // printf("Brooklyn newRecoveries %d\n", newRecoveries);
         }
 
         //Calculated city results
@@ -237,8 +237,97 @@ __global__ void covid_intracity_kernel(
 }
 
 
+__global__ void covid_spread_kernel(
+                        struct City* cityData,
+                        struct InfectedCity* allReleventInfectedCities,
+                        struct InfectedCity* allReleventInfectedCitiesResult,
+                        int mySmallCityCount,
+                        int myLargeCityCount,
+                        int allLargeCityCount)
+{
+    /*
+    All of myLargeCities can be infected by any large city
+    allLargeInfectedCities[0 .. myLargeCityCount-1] are my large cities
+    allLargeInfectedCities[myLargeCityCount .. allLargeCityCount] are other large cities
+    */
 
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int j;
+    int totalCitiesCount = mySmallCityCount + myLargeCityCount + allLargeCityCount;
+    int startIndex, endIndex, infectedCount;
+    short infectorIsSmallCity = 0;
+    char infectorState[3] = {'\0'};
 
+    double probability, distance;
+
+    //random probability generator
+    double rd;
+    curandState curand_state;
+    curand_init(clock64(), index, 0, &curand_state);//(seed, sequence, offset, state)
+
+    //the cities that are doing the infecting
+    while(index < totalCitiesCount){
+        if(index < mySmallCityCount){//index points to small city
+            //only consider infecting in rank cities
+            startIndex = 0;
+            endIndex = mySmallCityCount + myLargeCityCount;
+            infectorIsSmallCity = 1;
+        }else if(index < mySmallCityCount + myLargeCityCount){//"" my rank large city
+            //consider infecting all cities
+            startIndex = 0;
+            endIndex = totalCitiesCount;
+            infectorIsSmallCity = 0;
+        }else{//"" outside large city
+            //consider infecting all large cities
+            startIndex = mySmallCityCount;
+            endIndex = totalCitiesCount;
+            infectorIsSmallCity = 0;
+        }
+        my_strcpy(infectorState, cityData[index].state);
+        infectedCount = allReleventInfectedCities[index].infectedCount;
+
+        /*if(my_strcmp(cityData[index].cityName, "Brooklyn") == 0 && my_strcmp(cityData[index].state, "NY") == 0){
+            printf("Brooklyn infected %d startIndex %d endIndex %d small %d\n", infectedCount,
+            startIndex, endIndex, infectorIsSmallCity);
+        }*/
+        if(infectedCount > 0){
+            //the cities to be infected
+            for(j = startIndex; j< endIndex; j++){
+                //infector city can't infect itself
+                if(j == index) continue;
+                //if either city is small, infection can only happen within state
+                if((infectorIsSmallCity || cityData[j].cityRanking > 2) &&
+                my_strcmp(infectorState, cityData[j].state) != 0) continue;
+
+                
+                distance = getDistance(&cityData[index], &cityData[j]);
+
+                if(distance < 1) distance = 1;
+                if(distance > maxSpreadDistances[cityData[index].cityRanking][cityData[j].cityRanking]) continue;
+
+                //probability that city[j] will infect city[cityIndex]
+                //(m* log(infected population)*log(susceptible pop))/(log(dist)*spreadDenom)
+                probability = (probabilityMultipliers[cityData[index].cityRanking][cityData[j].cityRanking]*
+                log10f(infectedCount)*log10f(allReleventInfectedCities[j].susceptibleCount))/(log10f(distance) * spreadDenom);
+
+                //if(my_strcmp(cityData[index].cityName, "Brooklyn") == 0 &&
+                //my_strcmp(cityData[j].cityName, "Bronx") == 0)
+                //    printf("Brooklyn and Bronx prob: %f dist %f infected %d \n", probability, distance, infectedCount);
+                //the city at [cityIndex] gets infected
+                rd = curand_uniform(&curand_state);
+                if(rd < probability){
+                    allReleventInfectedCitiesResult[j].susceptibleCount = allReleventInfectedCities[j].susceptibleCount - 1;
+                    allReleventInfectedCitiesResult[j].infectedCount = allReleventInfectedCitiesResult[j].infectedCount + 1;
+                }
+            }
+        }
+
+        //increment the index
+        index += blockDim.x * gridDim.x;
+
+    }
+    
+}
 
 
 
