@@ -326,9 +326,8 @@ int main(int argc, char *argv[])
     
     outputFileNames = (char**) calloc(12, sizeof(char*));
     outputFileNames[0] = "covidOutput0.txt";
-    outputFileNames[1] = "covidOutput1.txt";
     //write results
-    outputData(2, &outputFileNames, myRank, numRanks, &cityData, 
+    outputData(1, &outputFileNames, myRank, numRanks, &cityData, 
     &allReleventInfectedCitiesResult, numSmallCities + numLargeCitiesWithinRank);
 
 
