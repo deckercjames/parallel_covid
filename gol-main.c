@@ -15,7 +15,7 @@ typedef unsigned long long ticks;
 
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 5;
+const int iterations = 3;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(
@@ -468,7 +468,6 @@ int main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
 
         //debug
-        // printLargeCitySample(largeCitiesByRank_head, largeInfectedCitiesByRank_head, myRank, numRanks);
         MPI_Barrier(MPI_COMM_WORLD);
         printNYCities(cityData, allReleventInfectedCities, cityDataLength, myRank);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -485,16 +484,23 @@ int main(int argc, char *argv[])
                             myRank, numRanks);
         passingTicks += (getticks() - startTick);
 
+        MPI_Barrier(MPI_COMM_WORLD);
+
         //spread of desease
-        // startTick = getticks();
-        // covid_spread_kernelLaunch(&cityData,
-        //     &allReleventInfectedCities,
-        //     &allReleventInfectedCitiesResult,
-        //     numSmallCities,
-        //     numLargeCitiesWithinRank,
-        //     allLargeCityCount,
-        //     threadsCount);
-        // computationTicks += (getticks() - startTick);
+        startTick = getticks();
+        covid_spread_kernelLaunch(&cityData,
+            &allReleventInfectedCities,
+            &allReleventInfectedCitiesResult,
+            numSmallCities,
+            numLargeCitiesWithinRank,
+            allLargeCityCount,
+            threadsCount);
+        computationTicks += (getticks() - startTick);
+
+        //debug
+        // MPI_Barrier(MPI_COMM_WORLD);
+        // printNYCities(cityData, allReleventInfectedCities, cityDataLength, myRank);
+        // MPI_Barrier(MPI_COMM_WORLD);
 
     }
     
