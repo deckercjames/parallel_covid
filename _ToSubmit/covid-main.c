@@ -71,8 +71,8 @@ struct City** cityData, int* cityDataLength, int* numSmallCities);
 double outputData(int numFiles, char*** fileNames, int rank, int numRanks, struct City** cityData, 
 struct InfectedCity** infectedCityData, int numCurRankCities);
 
-const char filename[50] = "WeakScalingFiles/01Nodes_443464.csv";
-const int fileLength = 443464;
+const char filename[50] = "uscities.csv";
+const int fileLength = 5309769;
 
 static __inline__ ticks getticks(void)
 {
