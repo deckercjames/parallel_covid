@@ -287,6 +287,11 @@ __global__ void covid_spread_kernel(
         }
         my_strcpy(infectorState, cityData[index].state);
         infectedCount = allReleventInfectedCities[index].infectedCount;
+
+        /*if(my_strcmp(cityData[index].cityName, "Brooklyn") == 0 && my_strcmp(cityData[index].state, "NY") == 0){
+            printf("Brooklyn infected %d startIndex %d endIndex %d small %d\n", infectedCount,
+            startIndex, endIndex, infectorIsSmallCity);
+        }*/
         if(infectedCount > 0){
             //the cities to be infected
             for(j = startIndex; j< endIndex; j++){
@@ -307,11 +312,14 @@ __global__ void covid_spread_kernel(
                 probability = (probabilityMultipliers[cityData[index].cityRanking][cityData[j].cityRanking]*
                 log10f(infectedCount)*log10f(allReleventInfectedCities[j].susceptibleCount))/(log10f(distance) * spreadDenom);
 
+                //if(my_strcmp(cityData[index].cityName, "Brooklyn") == 0 &&
+                //my_strcmp(cityData[j].cityName, "Bronx") == 0)
+                //    printf("Brooklyn and Bronx prob: %f dist %f infected %d \n", probability, distance, infectedCount);
                 //the city at [cityIndex] gets infected
                 rd = curand_uniform(&curand_state);
                 if(rd < probability){
-                    allReleventInfectedCitiesResult[index].susceptibleCount = allReleventInfectedCities[index].susceptibleCount - 1;
-                    allReleventInfectedCitiesResult[index].infectedCount = 1;
+                    allReleventInfectedCitiesResult[j].susceptibleCount = allReleventInfectedCities[j].susceptibleCount - 1;
+                    allReleventInfectedCitiesResult[j].infectedCount = allReleventInfectedCitiesResult[j].infectedCount + 1;
                 }
             }
         }

@@ -15,7 +15,7 @@ typedef unsigned long long ticks;
 
 //extern struct City;
 //extern struct InfectedCity;
-const int iterations = 5;
+const int iterations = 15;
 const int threadsCount = 64;
 
 extern void covid_allocateMem_CityData(
@@ -488,15 +488,15 @@ int main(int argc, char *argv[])
         passingTicks += (getticks() - startTick);
 
         //spread of desease
-        // startTick = getticks();
-        // covid_spread_kernelLaunch(&cityData,
-        //     &allReleventInfectedCities,
-        //     &allReleventInfectedCitiesResult,
-        //     numSmallCities,
-        //     numLargeCitiesWithinRank,
-        //     allLargeCityCount,
-        //     threadsCount);
-        // computationTicks += (getticks() - startTick);
+        startTick = getticks();
+        covid_spread_kernelLaunch(&cityData,
+             &allReleventInfectedCities,
+             &allReleventInfectedCitiesResult,
+             numSmallCities,
+             numLargeCitiesWithinRank,
+             allLargeCityCount,
+             threadsCount);
+            computationTicks += (getticks() - startTick);
 
     }
     
