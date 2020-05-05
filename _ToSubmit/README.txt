@@ -1,0 +1,1 @@
+This program will run with the full city data set. There are no arguments. We changed parameters by changing the c file. It will run for 60 iteration with 64 threads per block.
