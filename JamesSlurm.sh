@@ -22,6 +22,6 @@ module load spectrum-mpi
 module load cuda
 
 #  "WeakScalingFiles/06Nodes_2668414.cvs" 2668414 10 64 1
-mpirun -hostfile /tmp/hosts.$SLURM_JOB_ID -np $SLURM_NPROCS /gpfs/u/home/PCP9/PCP9dckr/scratch/final_project/covid-exe
+mpirun -hostfile /tmp/hosts.$SLURM_JOB_ID -np $SLURM_NPROCS /gpfs/u/home/PCP9/PCP9dckr/scratch/final_project/covid-exe 60 64
 
 rm /tmp/hosts.$SLURM_JOB_ID
