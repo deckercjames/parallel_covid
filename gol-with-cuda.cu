@@ -320,6 +320,26 @@ __global__ void covid_spread_kernel(
     
 }
 
+
+
+
+
+
+static inline void covid_swap( struct InfectedCity **pA, struct InfectedCity **pB)
+{
+    // You write this function - it should swap the pointers of pA and pB.
+    //declare a temp to store A
+    struct InfectedCity * temp = *pA;
+    //set a to b
+    *pA = *pB;
+    //set b to the stored val of a
+    *pB = temp;
+}
+
+
+
+
+
 extern "C" bool covid_intracity_kernelLaunch(struct City** cityData,
                         struct InfectedCity** allReleventInfectedCities,
                         struct InfectedCity** allReleventInfectedCitiesResult,
@@ -335,6 +355,8 @@ extern "C" bool covid_intracity_kernelLaunch(struct City** cityData,
     covid_intracity_kernel<<<blockCount, threadsCount>>>( *cityData, *allReleventInfectedCities, *allReleventInfectedCitiesResult, dataLength);
     
     cudaDeviceSynchronize();
+
+    covid_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
     return true;
 }
@@ -357,6 +379,8 @@ extern "C" bool covid_spread_kernelLaunch(struct City** cityData,
         mySmallCityCount, myLargeCityCount, allLargeCityCount);
 
     cudaDeviceSynchronize();
+
+    covid_swap( allReleventInfectedCities, allReleventInfectedCitiesResult );
 
     return true;
 }
