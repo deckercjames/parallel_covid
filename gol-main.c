@@ -63,7 +63,7 @@ extern void covid_freeMem(
 //analyzed internally. Once the start of a new state is found, add that state
 //to cityData as well as any states up to numLines*(rank+1)/numRanks (finishes adding the last state)
 //uscities.csv has 5309769 chars
-void readFile(const char* fileName, int numChars, int rank, int numRanks, 
+double readFile(int numFiles, char*** fileName, int numChars, int** numCharsByFile, int rank, int numRanks, 
 struct City** cityData, int* cityDataLength, int* numSmallCities);
 
 //takes in list of fileNames, cityData, infectedCityData
@@ -343,8 +343,16 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
     MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
 
-    //read in city data
-    readFile(filename, fileLength, myRank, numRanks, &cityData, &cityDataLength, &numSmallCities);
+
+
+    char** outputFileNames;
+    char** fileNames = (char**) calloc(1, sizeof(char*));
+    fileNames[i] = (char*) calloc(30, sizeof(char));
+    int* numCharsByFile = (int*)calloc(1, sizeof(int));
+    //read in city Data
+    fileNames[0] = "uscities.csv";
+    numCharsByFile[0] = 5309769;
+    readFile(1, &fileNames, fileLength, &numCharsByFile, myRank, numRanks, &cityData, &cityDataLength, &numSmallCities);
 
     //set the number of large cities within this rank
     numLargeCitiesWithinRank = cityDataLength - numSmallCities;
@@ -500,10 +508,12 @@ int main(int argc, char *argv[])
 
     }
     
-
-
+    outputFileNames = (char**) calloc(12, sizeof(char*));
+    outputFileNames[0] = "covidOutput0.txt";
+    outputFileNames[1] = "covidOutput1.txt";
     //write results
-
+    outputData(2, &outputFileNames, myRank, numRanks, &cityData, 
+    &allReleventInfectedCitiesResult, numSmallCities + numLargeCitiesWithinRank);
 
 
     //timing data
@@ -579,39 +589,70 @@ MPI_Datatype getInfectedCityDataType()
 }
 
 
-void readFile(const char* fileName, int numChars, int rank, int numRanks, 
+double readFile(int numFiles, char*** fileName, int numChars, int** numCharsByFile, int rank, int numRanks, 
 struct City** cityData, int* cityDataLength, int* numSmallCities){
-    MPI_File f;
+    MPI_File* f;
     MPI_Status status;
     char* buf;
     char* endptr;
     int startPos = numChars * ((float) rank / numRanks);
     int endPos = numChars * (((float) rank + 1)/ numRanks);
     int bufSize = 2*numChars/numRanks;
-    int i, tokenNum, smallCityIndex = -1, largeCityIndex = -1;
+    int tmpBufSize;
+    int i, tokenNum, smallCityIndex = -1, largeCityIndex = -1, curChar = 0, charCounter = 0;
     char token[3000] = {'\0'};
     char tmpChar = '\0';
     static const struct City blankCity;
     struct City tmpCity;
-    struct City largeCities[2000];
-    char firstState[3] = {'\0'};
-    char curState[3] = {'\0'};
-    char finalState[3] = {'\0'};
+    struct City largeCities[4000];
+    char firstState[5] = {'\0'};
+    char curState[5] = {'\0'};
+    char finalState[5] = {'\0'};
     short firstStateRecorded = 0, onFinalState = 0, finalStateRecorded = 0;
+    double t1, t2;
     if(rank == numRanks - 1){
         //ceiling of numChars/numRanks
         bufSize = numChars/numRanks + (numChars % numRanks != 0);
     }
+    int readEndPos = startPos + bufSize;
 
     //we will be reading twice the expected size at each rank
     //because most ranks will have to go over expected size
     buf = (char*) calloc(bufSize, sizeof(char));
+    *cityData = (struct City*) calloc(bufSize/120, sizeof(struct City));//approx 180 chars per line
+    f = (MPI_File*) calloc(numFiles, sizeof(MPI_File));
 
-    // *cityData = (struct City*) calloc(bufSize/180, sizeof(struct City));//approx 180 chars per line
-    covid_allocateMem_CityData(cityData, bufSize/180);
+    //start time
+    t1 = MPI_Wtime();
 
-    MPI_File_open(MPI_COMM_WORLD, fileName, MPI_MODE_RDONLY, MPI_INFO_NULL, &f);
-    MPI_File_read_at(f, startPos, buf, bufSize, MPI_CHAR, &status);
+    //open all the files
+    for(i = 0; i < numFiles; i++){
+        MPI_File_open(MPI_COMM_WORLD, (*fileName)[i], MPI_MODE_RDONLY, MPI_INFO_NULL, &f[i]);
+    }
+
+    //read into buf
+    //curChar refers to local rank, charCounter refers to the num of chars in
+    //all the files that have been passed
+    
+    for(i = 0; i < numFiles; i++){
+        
+        if(startPos < charCounter + (*numCharsByFile)[i] && readEndPos > charCounter){//read a file
+            if(charCounter + (*numCharsByFile)[i] < readEndPos){
+                tmpBufSize = (*numCharsByFile)[i] - (startPos + curChar - charCounter);
+            }else{
+                tmpBufSize = readEndPos - startPos - curChar;
+            }
+            //printf("before read at\n");
+            MPI_File_read_at(f[i], startPos + curChar - charCounter, &buf[curChar], tmpBufSize, MPI_CHAR, &status);
+            curChar += tmpBufSize;
+        }
+        charCounter += (*numCharsByFile)[i];
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    for(i = 0; i < numFiles; i++){
+        MPI_File_close(&f[i]);
+    }
+    t2 = MPI_Wtime();
 
     for(i = 0; i < bufSize; i++){
         if(buf[i] == '\n'){
@@ -647,6 +688,7 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                     }
                     if(onFinalState && strcmp(curState, finalState) != 0){
                         i = bufSize;
+                        //printf("final state: %s cur state: %s\n", finalState, curState);
                     }
                     strcpy(tmpCity.state, token);
                     break;
@@ -664,12 +706,16 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
                     break;
                 case 16://rank
                     tmpCity.cityRanking = atoi(token);
-                    if(strcmp(curState, firstState) == 0)
+                    if(rank != 0 && strcmp(curState, firstState) == 0)
                         break;
                     if(tmpCity.cityRanking < 3){
                         largeCities[largeCityIndex] = tmpCity;
                         largeCityIndex++;
                     }else{
+                        if(tmpCity.totalPopulation < 10000)
+                            tmpCity.cityRanking = 4;
+                        if(tmpCity.totalPopulation < 5000)
+                            tmpCity.cityRanking = 5;
                         (*cityData)[smallCityIndex] = tmpCity;
                         smallCityIndex++;
                     }
@@ -690,6 +736,8 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
     *cityDataLength = smallCityIndex + largeCityIndex;
     *numSmallCities = smallCityIndex;
     free(buf);
+    free(f);
+    return t2 - t1;
 }
 
 
@@ -805,7 +853,7 @@ void MPI_passOutputDataLen(int** outputDataLens, int myRank, int numRanks){
 //takes in list of fileNames, cityData, infectedCityData
 //and outputs cityName, state abbrev, city ranking, total population, susceptibleCount, infectedCount
 //recoveredCount, deceasedCount in csv format
-/*double outputData(int numFiles, char*** fileNames, int rank, int numRanks, struct City** cityData, 
+double outputData(int numFiles, char*** fileNames, int rank, int numRanks, struct City** cityData, 
 struct InfectedCity** infectedCityData, int numCurRankCities){
 
     int i, myFile;
@@ -813,49 +861,74 @@ struct InfectedCity** infectedCityData, int numCurRankCities){
     char* headerStr;
     char tmpStr[300] = {'\0'};
     int* outputDataLens;
-    MPI_File f;
+    double t1, t2;
+    char miniTmpStr[100] = {'\0'};
+    MPI_File* f;
     MPI_Offset myOffset=0;
     outputStr = (char*)calloc(numCurRankCities*150, sizeof(char));
     headerStr = (char*) calloc(500, sizeof(char));
     outputDataLens = (int*) calloc(numRanks, sizeof(int));
+    f = (MPI_File*) calloc(numFiles, sizeof(MPI_File));
 
-    strcat(headerStr, "iteration: " + itoa(infectedCityData[0].iterationOfInfection) + 
-    "\ncityName, state abbrev, city ranking, total population, susceptibleCount, infectedCount
-    recoveredCount, deceasedCount\n");
+    sprintf(miniTmpStr, "%d", infectedCityData[0]->iterationOfInfection); 
+    strcat(headerStr, "iteration: ");
+    strcat(headerStr, miniTmpStr);
+    strcat(headerStr, "\ncityName, state abbrev, city ranking, total population, susceptibleCount, infectedCount, recoveredCount, deceasedCount\n");
     
-    myFile = numRanks % numFiles;
+    myFile = rank % numFiles;
     if(rank == myFile){
         strcat(outputStr, headerStr);
     }
 
     for(i = 0; i < numCurRankCities; i++){
-        strcat(outputStr, "\"" + (*cityData)[i].cityName + "\",");
-        strcat(outputStr, "\"" + (*cityData)[i].state + "\",");
-        strcat(outputStr, "\"" + itoa((*cityData)[i].cityRanking) + "\",");
-        strcat(outputStr, "\"" + itoa((*cityData)[i].totalPopulation) + "\",");
-        strcat(outputStr, "\"" + itoa((*infectedCityData)[i].susceptibleCount) + "\",");
-        strcat(outputStr, "\"" + itoa((*infectedCityData)[i].infectedCount) + "\",");
-        strcat(outputStr, "\"" + itoa((*infectedCityData)[i].recoveredCount) + "\",");
-        strcat(outputStr, "\"" + itoa((*infectedCityData)[i].deceasedCount) + "\"\n");
+        strcat(outputStr, "\""); strcat(outputStr, (*cityData)[i].cityName);
+        strcat(outputStr, "\",\""); strcat(outputStr, (*cityData)[i].state);
+        sprintf(miniTmpStr, "%d", (*cityData)[i].cityRanking); 
+        strcat(outputStr, "\",\""); strcat(outputStr,  miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*cityData)[i].totalPopulation); 
+        strcat(outputStr, "\",\""); strcat(outputStr,  miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*cityData)[i].cityRanking); 
+        strcat(outputStr, "\",\""); strcat(outputStr,  miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*infectedCityData)[i].susceptibleCount); 
+        strcat(outputStr, "\",\""); strcat(outputStr, miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*infectedCityData)[i].infectedCount); 
+        strcat(outputStr, "\",\""); strcat(outputStr, miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*infectedCityData)[i].recoveredCount); 
+        strcat(outputStr, "\",\""); strcat(outputStr, miniTmpStr);
+        sprintf(miniTmpStr, "%d", (*infectedCityData)[i].deceasedCount);
+        strcat(outputStr, "\",\""); strcat(outputStr, miniTmpStr);
+        strcat(outputStr, "\"\n");
     }
     outputDataLens[rank] = strlen(outputStr);
     MPI_passOutputDataLen(&outputDataLens, rank, numRanks);
 
         //start time
     t1 = MPI_Wtime();
+    printf("rank %d myFile: %d len[0]: %d len[1]: %d len[2]: %d len[3]: %d filename: %s output: %c\n",
+    rank, myFile, outputDataLens[0], outputDataLens[1], outputDataLens[2], outputDataLens[3],
+    (*fileNames)[myFile], outputStr[1]);
 
-    //open the right file
-    MPI_File_open(MPI_COMM_WORLD, (*fileNames)[myFile], MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &f);
+    //open all the files
+    for(i = 0; i < numFiles; i++){
+        MPI_File_open(MPI_COMM_WORLD, (*fileNames)[i], MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &f[i]);
+    }
 
     //set view based on outputDataLen
     //loop through all ranks sharing the file that are aheard of us
     for(i = myFile; i < rank; i += numFiles)
         myOffset += outputDataLens[i];
-    MPI_File_set_view(f, myOffset, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
-    MPI_File_write(f, outputStr, strlen(outputStr), MPI_CHAR, MPI_STATUS_IGNORE);
+    for(i = 0; i < numFiles; i++)
+        MPI_File_set_view(f[i], myOffset, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
+    MPI_File_write(f[myFile], outputStr, strlen(outputStr), MPI_CHAR, MPI_STATUS_IGNORE);
+    //MPI_File_write_at(f[myFile], myOffset, outputStr, strlen(outputStr), MPI_CHAR, MPI_STATUS_IGNORE);
     MPI_Barrier(MPI_COMM_WORLD);
-    MPI_File_close(&f);
+    //close all the files
+    for(i = 0; i < numFiles; i++)
+        MPI_File_close(&f[i]);
+    printf("rank %d done\n", rank);
     t2 = MPI_Wtime();
-
+    free(outputStr);
+    free(headerStr);
+    free(outputDataLens);
     return t2 - t1;
-}*/
+}

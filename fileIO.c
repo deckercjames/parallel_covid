@@ -34,9 +34,7 @@ struct City** cityData, int* cityDataLength, int* numSmallCities){
     //because most ranks will have to go over expected size
     buf = (char*) calloc(bufSize, sizeof(char));
     *cityData = (struct City*) calloc(bufSize/120, sizeof(struct City));//approx 180 chars per line
-    for(i = 0; i < numFiles; i++){
-        f = (MPI_File*) calloc(numFiles, sizeof(MPI_File));
-    }
+    f = (MPI_File*) calloc(numFiles, sizeof(MPI_File));
 
     //start time
     t1 = MPI_Wtime();
