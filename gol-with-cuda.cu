@@ -219,8 +219,8 @@ __global__ void covid_intracity_kernel(
         if(newRecoveries > city->infectedCount) newRecoveries = city->infectedCount;
         if(cityData[index].totalPopulation == 2629150){
             // printf("index %d\n", index);
-            // printf("Brooklyn newInfections %d\n", newInfections);
-            // printf("Brooklyn newRecoveries %d\n", newRecoveries);
+            printf("Brooklyn newInfections %d\n", newInfections);
+            printf("Brooklyn newRecoveries %d\n", newRecoveries);
         }
 
         //Calculated city results
@@ -235,6 +235,8 @@ __global__ void covid_intracity_kernel(
     }
     
 }
+
+
 
 
 __global__ void covid_spread_kernel(
@@ -328,6 +330,8 @@ __global__ void covid_spread_kernel(
     }
     
 }
+
+
 
 
 
